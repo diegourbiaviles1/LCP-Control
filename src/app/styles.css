@@ -1,6 +1,7 @@
 @import 'tailwindcss';
 @theme {
-  --color-forest: #173f36;
+  --color-wine: #57171c;
+  --color-gold: #c4a05a;
 }
 :root {
   font-family: Inter, 'Segoe UI', Arial, sans-serif;
@@ -1663,4 +1664,134 @@ th:last-child {
 .filter-grid select {
   min-height: 44px;
   font-size: 12px;
+}
+
+/* La Casa del Perfume: wine and gold accents on quiet operational surfaces. */
+:root {
+  color: #342a29;
+  background: #faf8f5;
+}
+.button-primary {
+  background: #57171c;
+  color: #fffaf3;
+}
+.button-primary:hover {
+  background: #421015;
+}
+.button-secondary {
+  border-color: #e2d7d2;
+  color: #57171c;
+}
+.button-secondary:hover,
+.button-ghost:hover {
+  background: #f7efeb;
+}
+.button-ghost,
+.text-link,
+.table-footer a,
+.section-heading a {
+  color: #6b252b;
+}
+.brand-mark {
+  background: #57171c;
+  color: #d8b66c;
+}
+.sidebar nav a.active {
+  background: #f3e8e4;
+  color: #57171c;
+}
+.sidebar nav a:hover {
+  background: #f8efeb;
+}
+.sidebar,
+.topbar,
+.bottom-nav {
+  background: #fffdf9;
+}
+.workspace,
+.main-content {
+  background: #faf8f5;
+}
+.demo-banner,
+.feedback,
+.page-feedback {
+  background: #f5eee7;
+  border-color: #e8dbd0;
+  color: #6d4c3d;
+}
+.status-dot {
+  background: #b38b42;
+}
+.eyebrow {
+  color: #7a5c30;
+}
+.badge-neutral {
+  background: #f3eee8;
+  color: #69554b;
+}
+.badge-success {
+  background: #f4e9e5;
+  color: #6b252b;
+}
+.scan-promo {
+  background: #57171c;
+  color: #fffaf3;
+}
+.scan-promo .eyebrow,
+.scan-art {
+  color: #d8b66c;
+}
+.scan-promo p {
+  color: #eadbd2;
+}
+.promo-button {
+  background: #fff8eb;
+  color: #57171c;
+}
+.sale-promo,
+.camera-stage,
+.camera-placeholder {
+  background: #f5eee7;
+}
+.round-icon,
+.product-icon {
+  background: #f1e7dc;
+  border-color: #e4d4c4;
+  color: #98702d;
+}
+.bottom-nav a.active {
+  color: #57171c;
+}
+.location-bar span {
+  background: #8b3439;
+}
+.location-bar.light span {
+  background: #c4a05a;
+}
+.scan-frame {
+  background: #eee4da;
+  border-color: #c9ad82;
+  color: #8a652a;
+}
+.camera-placeholder h3,
+.scanner-guide li > span {
+  color: #6b252b;
+}
+.login-story {
+  background: #57171c;
+  color: #fffaf3;
+}
+.login-story .brand-mark {
+  background: #fff8eb;
+  color: #57171c;
+}
+.login-story .eyebrow,
+.login-story .login-footer {
+  color: #d8b66c;
+}
+.login-story p {
+  color: #eadbd2;
+}
+.login-feature {
+  border-color: #814047;
 }

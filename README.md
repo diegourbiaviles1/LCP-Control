@@ -78,6 +78,8 @@ NIO y USD se formatean con `Intl.NumberFormat` y no se suman entre monedas. Los 
 
 ## Decisiones pendientes y próximo incremento
 
+El contexto observado en el Instagram y catálogo público, junto con las preguntas que deben confirmarse antes del esquema, está registrado en [`docs/discovery/business-context.md`](docs/discovery/business-context.md).
+
 Operador: entradas y ajustes denegados conservadoramente; creación de productos solo administrativa. Confirmar estas políticas antes de habilitar escrituras. Pendientes política NIO/USD y posibles pagos en dos monedas; no se inventaron tipos de cambio, impuestos ni descuentos.
 
 Siguiente incremento: perfiles y autorización real, productos y lectura de inventario por ubicación con RLS y pruebas de acceso admin/operator. Luego movimientos atómicos y auditables, sin stock negativo, con costo promedio protegido en base de datos. Las ventas completas vendrán después. Dominios de clientes y proveedores permanecen separados, sin CRM ni UI adicional.
