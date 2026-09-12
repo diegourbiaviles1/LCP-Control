@@ -48,11 +48,9 @@ export function ScannerPage() {
     <>
       <div className="page-heading">
         <div>
-          <span className="eyebrow">APUNTA. ESCANEA. ENCUENTRA.</span>
+          <span className="eyebrow">LECTOR DE PRODUCTOS</span>
           <h1>Escanear producto</h1>
-          <p className="muted">
-            La información que necesitas, a una lectura de distancia.
-          </p>
+          <p className="muted">Consulta un producto por su etiqueta interna.</p>
         </div>
       </div>
       <div className="scanner-grid">
@@ -125,7 +123,7 @@ export function ScannerPage() {
               <Input
                 label="Código del producto"
                 name="barcode"
-                placeholder="Ej. LCP-0001"
+                placeholder="Ej. LCP-B106BB7E6C"
                 maxLength={128}
                 required
                 disabled={busy}
@@ -135,7 +133,7 @@ export function ScannerPage() {
               </Button>
             </form>
             <p>
-              Demo: prueba <code>LCP-0001</code> o un código desconocido.
+              Prueba <code>LCP-B106BB7E6C</code> para consultar Hawas black.
             </p>
           </div>
         </Card>

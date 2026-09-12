@@ -9,12 +9,14 @@ import { ScannerPage } from '../features/scanner/ScannerPage'
 import { SalesPage } from '../features/sales/SalesPage'
 import { AlertsPage } from '../features/alerts/AlertsPage'
 import { ProductDraftPage } from '../features/products/ProductDraftPage'
+import { SuppliersPage } from '../features/suppliers/SuppliersPage'
 export function App() {
   const pages = (
     <>
       <Route index element={<DashboardPage />} />
       <Route path="inventory" element={<InventoryPage />} />
       <Route path="scanner" element={<ScannerPage />} />
+      <Route path="suppliers" element={<SuppliersPage />} />
       <Route path="sales" element={<SalesPage />} />
       <Route path="products" element={<InventoryPage catalog />} />
       <Route path="products/new" element={<ProductDraftPage />} />

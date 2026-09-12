@@ -85,11 +85,11 @@ test('demo dashboard, responsive layout, inventory filters and navigation', asyn
   page,
 }, info) => {
   await page.goto('/demo')
+  await expect(page.getByRole('heading', { name: 'Inicio' })).toBeVisible()
   await expect(
-    page.getByRole('heading', { name: 'Todo en orden.' }),
-  ).toBeVisible()
-  await expect(
-    page.getByText('Datos de demostración · Solo lectura'),
+    page.getByText(
+      'Vista local · Los borradores se guardan únicamente en este navegador.',
+    ),
   ).toBeVisible()
   expect(
     await page.evaluate(
@@ -101,14 +101,14 @@ test('demo dashboard, responsive layout, inventory filters and navigation', asyn
     fullPage: true,
   })
   await page.goto('/demo/inventory')
-  await page.getByLabel('Buscar producto').fill('Producto B')
-  await expect(page.getByText('1 de 8 productos')).toBeVisible()
+  await page.getByLabel('Buscar producto').fill('Hawas black')
+  await expect(page.getByText('1 de 260 productos')).toBeVisible()
   await page.getByLabel('Buscar producto').fill('does not exist')
   await expect(
     page.getByRole('heading', { name: 'No hay resultados' }),
   ).toBeVisible()
   await page.getByRole('button', { name: 'Limpiar filtros' }).click()
-  await expect(page.getByText('8 de 8 productos')).toBeVisible()
+  await expect(page.getByText('260 de 260 productos')).toBeVisible()
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= window.innerWidth,
@@ -119,9 +119,10 @@ test('demo dashboard, responsive layout, inventory filters and navigation', asyn
     fullPage: true,
   })
   for (const [path, title] of [
-    ['sales', 'Nueva venta'],
-    ['products', 'Productos'],
+    ['sales', 'Facturación'],
+    ['products', 'Catálogo'],
     ['alerts', 'Alertas de inventario'],
+    ['suppliers', 'Proveedores'],
   ] as const) {
     await page.goto(`/demo/${path}`)
     await expect(
@@ -133,10 +134,10 @@ test('manual scanner identifies known and unknown products', async ({
   page,
 }, info) => {
   await page.goto('/demo/scanner')
-  await page.getByLabel('Código del producto').fill('LCP-0001')
+  await page.getByLabel('Código del producto').fill('LCP-B106BB7E6C')
   await page.getByRole('button', { name: 'Buscar', exact: true }).click()
   await expect(
-    page.getByRole('heading', { name: 'Producto A', exact: true }),
+    page.getByRole('heading', { name: 'Hawas black', exact: true }),
   ).toBeVisible()
   await page.getByRole('button', { name: 'Salida', exact: true }).click()
   await expect(page.getByRole('dialog')).toBeVisible()

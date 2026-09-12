@@ -1,6 +1,8 @@
+import { Brand } from '../../components/Brand'
+import { Reflection } from '../dashboard/Reflection'
 import { useState, type FormEvent } from 'react'
 import { Link, Navigate, useLocation } from 'react-router-dom'
-import { ArrowRight, ScanLine, ShieldCheck } from 'lucide-react'
+import { ArrowRight, ShieldCheck } from 'lucide-react'
 import { useAuth } from './AuthContext'
 import { Button, Feedback, Input, LoadingState } from '../../components/ui'
 import { loginSchema } from '../../lib/validation'
@@ -50,34 +52,19 @@ export function LoginPage() {
   return (
     <main className="login-layout">
       <section className="login-story">
-        <Link className="brand" to="/login">
-          <span className="brand-mark">L</span>
-          <span>
-            LCP <b>Control</b>
-          </span>
-        </Link>
-        <div>
-          <span className="eyebrow">CADA DETALLE, BAJO CONTROL</span>
-          <h1>
-            Tu perfumería.
-            <br />
-            En perfecto orden.
-          </h1>
-          <p>
-            Menos tareas. Más claridad.
-            <br />
-            El espacio para gestionar tu inventario y acompañar cada venta.
-          </p>
-          <div className="login-feature">
-            <ScanLine />
-            <span>Escanea. Encuentra. Continúa.</span>
-          </div>
+        <div className="login-brand-panel">
+          <Brand wordmark />
         </div>
-        <span className="login-footer">UN SOLO ESPACIO PARA TU OPERACIÓN</span>
+        <div>
+          <h1>Bienvenido a tu tienda.</h1>
+          <Reflection />
+        </div>
+        <span className="login-footer">La Casa del Perfume · Nicaragua</span>
       </section>
       <section className="login-form">
-        <span className="eyebrow">BIENVENIDO A LCP CONTROL</span>
-        <h2>Todo comienza aquí.</h2>
+        <Brand wordmark className="login-mobile-brand" />
+        <span className="eyebrow">LA CASA DEL PERFUME</span>
+        <h2>Iniciar sesión</h2>
         <p className="muted">Ingresa con la cuenta de tu tienda.</p>
         <form onSubmit={submit}>
           <Input
@@ -108,12 +95,12 @@ export function LoginPage() {
         </form>
         {!authConfigured && (
           <Feedback>
-            Supabase pendiente de configuración. Explora Foundation con datos de
-            demostración.
+            Puedes consultar el catálogo y preparar borradores sin iniciar
+            sesión.
           </Feedback>
         )}
         <Link className="demo-link" to="/demo">
-          Explorar demostración <ArrowRight size={16} />
+          Abrir vista local <ArrowRight size={16} />
         </Link>
         <p className="login-note">
           <ShieldCheck size={16} /> Acceso privado. Solicita tu cuenta al

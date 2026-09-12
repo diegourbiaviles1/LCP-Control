@@ -39,8 +39,8 @@ export function Select({
   const id = useId()
   return (
     <label className="field" htmlFor={id}>
-      <span>{label}</span>
-      <select id={id} {...props}>
+      <span id={`${id}-label`}>{label}</span>
+      <select id={id} aria-labelledby={`${id}-label`} {...props}>
         {children}
       </select>
     </label>

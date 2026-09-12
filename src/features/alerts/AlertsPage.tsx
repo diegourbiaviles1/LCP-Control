@@ -12,7 +12,7 @@ export function AlertsPage() {
     <>
       <div className="page-heading">
         <div>
-          <span className="eyebrow">A TIEMPO, SIEMPRE</span>
+          <span className="eyebrow">EXISTENCIAS</span>
           <h1>Alertas de inventario</h1>
           <p className="muted">
             Productos cuyo total está por debajo del mínimo configurado.
@@ -29,8 +29,8 @@ export function AlertsPage() {
           <ErrorState message={error} retry={retry} />
         ) : !data?.length ? (
           <EmptyState
-            title="Tu inventario está al día"
-            description="No hay productos con stock bajo."
+            title="Conteos pendientes"
+            description="Las alertas estarán disponibles al registrar existencias y mínimos."
           />
         ) : (
           data.map((item) => <ProductCard item={item} key={item.product.id} />)

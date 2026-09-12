@@ -8,21 +8,23 @@ import {
   Layers3,
   Bell,
   LogOut,
-  ArrowUpRight,
+  Truck,
   Menu,
   X,
 } from 'lucide-react'
 import { useAuth } from '../features/auth/AuthContext'
 import { AccessContext } from './AccessContext'
-import { Button, Badge } from '../components/ui'
+import { Button } from '../components/ui'
+import { Brand } from '../components/Brand'
 import { errorMessage } from '../lib/errors'
 const links = [
-  ['', 'Resumen', LayoutDashboard],
+  ['', 'Inicio', LayoutDashboard],
   ['/inventory', 'Inventario', Package],
   ['/scanner', 'Escanear', ScanLine],
-  ['/sales', 'Ventas', ShoppingBag],
-  ['/products', 'Productos', Layers3],
+  ['/sales', 'Facturación', ShoppingBag],
+  ['/products', 'Catálogo', Layers3],
   ['/alerts', 'Alertas', Bell],
+  ['/suppliers', 'Proveedores', Truck],
 ] as const
 export function AppShell({ demo = false }: { demo?: boolean }) {
   const { user, service } = useAuth()
@@ -60,10 +62,9 @@ export function AppShell({ demo = false }: { demo?: boolean }) {
       <div className="app-layout">
         <aside className={`sidebar ${menu ? 'sidebar-open' : ''}`}>
           <Link className="brand" to={base || '/'}>
-            <span className="brand-mark">L</span>
+            <Brand />
             <span>
-              LCP <b>Control</b>
-              <small>GESTIÓN DE PERFUMERÍA</small>
+              La Casa del Perfume<small>ADMINISTRACIÓN</small>
             </span>
           </Link>
           <Button
@@ -74,7 +75,7 @@ export function AppShell({ demo = false }: { demo?: boolean }) {
           >
             <X />
           </Button>
-          <span className="nav-label">ESPACIO DE TRABAJO</span>
+          <span className="nav-label">MI TIENDA</span>
           <nav aria-label="Navegación principal">
             {links.map(([path, label, Icon]) => (
               <NavLink
@@ -90,23 +91,15 @@ export function AppShell({ demo = false }: { demo?: boolean }) {
             ))}
           </nav>
           <div className="sidebar-bottom">
-            <div className="workspace-note">
-              <span className="status-dot" /> Todo en un solo lugar
-              <p>
-                El control de tu tienda,
-                <br />
-                siempre a mano.
-              </p>
-            </div>
             <div className="user-block">
               <span className="avatar">
                 {demo ? 'D' : user?.email.charAt(0).toUpperCase()}
               </span>
               <div>
-                <strong>{demo ? 'Vista de demostración' : user?.email}</strong>
+                <strong>{demo ? 'Vista local' : user?.email}</strong>
                 <small>
                   {demo
-                    ? 'Solo lectura'
+                    ? 'Sin conexión a base de datos'
                     : role === 'admin'
                       ? 'Administrador'
                       : 'Operador'}
@@ -141,12 +134,12 @@ export function AppShell({ demo = false }: { demo?: boolean }) {
               >
                 <Menu size={20} />
               </Button>
-              <span>Mi perfumería</span>
+              <Brand className="header-brand" />
+              <span>La Casa del Perfume</span>
               <span className="topbar-divider">/</span>
-              <span className="muted">Panel de control</span>
+              <span className="muted">Administración</span>
             </div>
             <div className="topbar-actions">
-              <Badge>Foundation · 01</Badge>
               <Link aria-label="Ver alertas" to={`${base}/alerts`}>
                 <Bell size={20} />
               </Link>
@@ -157,25 +150,20 @@ export function AppShell({ demo = false }: { demo?: boolean }) {
           </header>
           <div className="demo-banner">
             <span>
-              <span className="status-dot" /> Datos de demostración · Solo
-              lectura
+              Vista local · Los borradores se guardan únicamente en este
+              navegador.
             </span>
-            <Link to="/login">
-              {demo ? 'Conectar mi tienda' : 'Autenticación activa'}
-              <ArrowUpRight size={14} />
-            </Link>
           </div>
           {!online && (
             <div role="alert" className="offline-banner">
-              Sin conexión. Los datos mostrados son de demostración; no se
-              enviarán operaciones.
+              Sin conexión. Las fotos externas pueden no estar disponibles.
             </div>
           )}
           <main id="main" className="main-content">
             <Outlet />
           </main>
           <footer className="workspace-footer">
-            LCP Control<span>Hecho para una operación más simple.</span>
+            La Casa del Perfume<span>Managua, Nicaragua</span>
           </footer>
         </div>
         <nav className="bottom-nav" aria-label="Navegación móvil">

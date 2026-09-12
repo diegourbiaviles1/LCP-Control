@@ -4,13 +4,15 @@ import type {
   Gender,
   InventoryLocation,
 } from '../../lib/domain'
-export type StockFilter = '' | 'low' | 'out' | 'available'
+export type StockFilter = '' | 'low' | 'out' | 'available' | 'unknown'
 export interface InventoryFilters {
   search: string
   category: Category | ''
   gender: Gender | ''
   location: InventoryLocation | ''
   stock: StockFilter
+  brand: string
+  size: string
 }
 export const emptyFilters: InventoryFilters = {
   search: '',
@@ -18,17 +20,22 @@ export const emptyFilters: InventoryFilters = {
   gender: '',
   location: '',
   stock: '',
+  brand: '',
+  size: '',
 }
 export function totalStock(item: InventoryItem) {
-  return item.quantities.store + item.quantities.warehouse
+  const { store, warehouse } = item.quantities
+  return store === null || warehouse === null ? null : store + warehouse
 }
 export function stockStatus(item: InventoryItem) {
   const total = totalStock(item)
-  return total === 0
-    ? 'out'
-    : total < item.product.minimumStock
-      ? 'low'
-      : 'available'
+  return total === null
+    ? 'unknown'
+    : total === 0
+      ? 'out'
+      : item.product.minimumStock !== null && total < item.product.minimumStock
+        ? 'low'
+        : 'available'
 }
 export function filterInventory(
   items: InventoryItem[],
@@ -46,9 +53,18 @@ export function filterInventory(
         .includes(query) &&
       (!filters.category || product.category === filters.category) &&
       (!filters.gender || product.gender === filters.gender) &&
+      (!filters.brand || product.brand === filters.brand) &&
+      (!filters.size ||
+        (product.size === null
+          ? 'unknown'
+          : `${product.size} ${product.unit}`) === filters.size) &&
       (filters.stock !== 'out' || quantity === 0) &&
-      (filters.stock !== 'low' || quantity < product.minimumStock) &&
-      (filters.stock !== 'available' || quantity > 0)
+      (filters.stock !== 'low' ||
+        (quantity !== null &&
+          product.minimumStock !== null &&
+          quantity < product.minimumStock)) &&
+      (filters.stock !== 'available' || (quantity !== null && quantity > 0)) &&
+      (filters.stock !== 'unknown' || quantity === null)
     )
   })
 }

@@ -91,8 +91,7 @@ export function ScannerResult({ product }: { product: Product }) {
       </div>
       {role === 'operator' && (
         <small>
-          Entradas y ajustes requieren autorización administrativa; política
-          pendiente de definición.
+          Los movimientos preparados quedan pendientes de registrar.
         </small>
       )}
       <Dialog
@@ -104,9 +103,8 @@ export function ScannerResult({ product }: { product: Product }) {
           <strong>{product.name}</strong> · {product.barcode}
         </p>
         <p>
-          Este flujo se habilitará cuando exista una operación segura en
-          PostgreSQL que registre el movimiento y preserve las existencias. No
-          se ha modificado ninguna cantidad.
+          Puedes preparar este movimiento desde Inventario. Se guardará como
+          pendiente, sin cambiar las existencias.
         </p>
         <Button onClick={() => setAction('')}>Entendido</Button>
       </Dialog>
@@ -122,7 +120,7 @@ export function UnknownProduct({ code }: { code: string }) {
       <code>{code}</code>
       <p className="muted">
         {can(role, 'product.manage')
-          ? 'Puedes preparar el alta con este código. El guardado estará disponible con el backend de productos.'
+          ? 'Puedes preparar el alta con este código. El código del fabricante se verificará al registrar el producto.'
           : 'Solicita al administrador que registre o verifique este código.'}
       </p>
       {can(role, 'product.manage') && (

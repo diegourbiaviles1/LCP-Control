@@ -1,4 +1,4 @@
-import { demoAdapter } from './adapters/demo'
+import { catalogAdapter } from './adapters/catalog'
 import { barcodeSchema } from '../lib/validation'
 import { AppError } from '../lib/errors'
 import type { DataProvider } from './contracts'
@@ -16,9 +16,14 @@ export function createServices(provider: DataProvider) {
     inventoryService: {
       getInventory: () => provider.getInventory(),
       async getLowStock() {
-        return (await provider.getInventory()).filter(
-          (item) => totalStock(item) < item.product.minimumStock,
-        )
+        return (await provider.getInventory()).filter((item) => {
+          const total = totalStock(item)
+          return (
+            total !== null &&
+            item.product.minimumStock !== null &&
+            total < item.product.minimumStock
+          )
+        })
       },
     },
     salesService: { getTodaySummary: () => provider.getTodaySummary() },
@@ -28,7 +33,7 @@ export function createServices(provider: DataProvider) {
 const dataMode = import.meta.env.VITE_DATA_MODE || 'demo'
 const provider: DataProvider =
   dataMode === 'demo'
-    ? demoAdapter
+    ? catalogAdapter
     : {
         mode: 'demo',
         getInventory: async () => {

@@ -55,7 +55,7 @@ describe('auth flow', () => {
   it('redirects unauthenticated visitors', async () => {
     mount(serviceFor(null))
     expect(
-      await screen.findByRole('heading', { name: 'Todo comienza aquí.' }),
+      await screen.findByRole('heading', { name: 'Iniciar sesión' }),
     ).toBeInTheDocument()
     expect(screen.queryByText('Private')).not.toBeInTheDocument()
   })
@@ -103,7 +103,7 @@ describe('auth flow', () => {
     mount(service)
     await userEvent.click(await screen.findByText('Salir'))
     expect(
-      await screen.findByRole('heading', { name: 'Todo comienza aquí.' }),
+      await screen.findByRole('heading', { name: 'Iniciar sesión' }),
     ).toBeInTheDocument()
   })
   it('does not let stale restoration overwrite an auth event', async () => {
