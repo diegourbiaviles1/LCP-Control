@@ -1,4 +1,4 @@
-import type { InventoryItem, Product } from '../lib/domain'
+import type { InventoryItem, Product, InventoryMovement } from '../lib/domain'
 export interface DataProvider {
   readonly mode: 'demo'
   getInventory(): Promise<InventoryItem[]>
@@ -7,4 +7,5 @@ export interface DataProvider {
     count: number
     totals: { NIO: number; USD: number }
   }>
+  createInventoryMovement(movement: Omit<InventoryMovement, 'id' | 'createdAt'>): Promise<void>
 }

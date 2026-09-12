@@ -20,6 +20,7 @@ export function createServices(provider: DataProvider) {
           (item) => totalStock(item) < item.product.minimumStock,
         )
       },
+      createInventoryMovement: (movement) => provider.createInventoryMovement(movement),
     },
     salesService: { getTodaySummary: () => provider.getTodaySummary() },
   }
