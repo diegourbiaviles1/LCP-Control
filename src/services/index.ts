@@ -7,10 +7,20 @@ import { authConfigured } from '../lib/supabase'
 import type { DataProvider } from './contracts'
 import { totalStock } from '../features/inventory/model'
 import type { DocumentKind, MovementRequest, NewDocument } from '../lib/domain'
+import {
+  productInputSchema,
+  type ProductInput,
+} from '../features/products/product'
 export function createServices(provider: DataProvider) {
   return {
     mode: provider.mode,
     productService: {
+      listProducts: () => provider.listProducts(),
+      saveProduct: (input: ProductInput) =>
+        provider.saveProduct(productInputSchema.parse(input)),
+      removeProduct: (id: string, revision: number) =>
+        provider.removeProduct(id, revision),
+      uploadProductImage: (blob: Blob) => provider.uploadProductImage(blob),
       async findByBarcode(code: string) {
         const parsed = barcodeSchema.safeParse(code)
         if (!parsed.success)

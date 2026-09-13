@@ -84,7 +84,7 @@ test('the invoice screen recalculates every tier and currency, saves and reopens
     fullPage: true,
   })
   await page.emulateMedia({ media: 'print' })
-  await expect(page.locator('.invoice-notice')).toBeVisible()
+  await expect(page.locator('.letter-footer')).toBeVisible()
   await expect(
     page.getByRole('heading', { name: 'Facturación', exact: true }),
   ).not.toBeVisible()

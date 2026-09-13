@@ -2,6 +2,8 @@
 
 Proyecto Supabase `LCP-Control` (`vqicpwbwuatlyfdzpfne`, región `us-east-2`, PostgreSQL 17). El esquema completo está versionado en [`supabase/migrations`](../supabase/migrations); ese directorio es la fuente de verdad y reproduce la base desde cero.
 
+La migración nueva `20260913120000_catalog_management_and_images.sql` está preparada y probada localmente, **pendiente de aplicar al proyecto remoto**. Añade catálogo editable, revisión de cambios, fotos en Storage y edición del nombre propio. Ver [activación y límites](catalog-and-printing.md).
+
 ## Qué guarda
 
 | Tabla                 | Contenido                                                                                                                                                     |
@@ -31,12 +33,14 @@ Una restricción de la tabla impide mezclarlos: una factura no puede llevar vige
 
 ## Cómo se escribe
 
-Las tablas sólo conceden `select` a usuarios autenticados, y sus políticas exigen una fila activa en `staff_members`. Toda escritura pasa por dos funciones:
+Las tablas del negocio sólo conceden `select` a usuarios autenticados, y sus políticas exigen una fila activa en `staff_members`. Los documentos y movimientos se escriben mediante:
 
 - `create_document(p_payload jsonb)` — valida tipo, lista, moneda, cantidades y existencias; bloquea las filas en un orden fijo para que dos ventas simultáneas no vendan de más; y devuelve el documento con sus renglones.
 - `record_inventory_movement(p_payload jsonb)` — registra entrada, salida, daño o ajuste, y actualiza el saldo. Sólo un `admin` puede registrar entradas y ajustes.
 
 Ambas reciben un `requestId` y son idempotentes: repetir la misma llamada devuelve el documento o movimiento ya creado en vez de duplicarlo. Si los datos cambiaron, fallan en lugar de sobrescribir.
+
+La nueva migración añade `save_catalog_product` y `remove_catalog_product`, exclusivas de administradores, y `update_my_profile`, que cambia únicamente el nombre de la cuenta activa. Catálogo usa revisiones para detectar cambios concurrentes y una bitácora privada. Las fotografías usan las políticas del bucket privado `product-images`; el navegador no recibe una clave administrativa.
 
 ## Dar de alta al personal
 
@@ -68,7 +72,7 @@ Las facturas y movimientos que registró siguen apuntando a su cuenta; sólo dej
 
 `products.sku` es el código interno que se imprime en la etiqueta y reconoce el escáner. `products.barcode` queda reservado para el EAN/UPC del fabricante, que también permite buscar el producto cuando se registra. La vista local `/demo` trabaja con 30 productos inventados y códigos `DEMO-0001` a `DEMO-0030`; no se usan para operar en la base.
 
-`products.image_reference` guarda el enlace de Google Drive tal como venía en el Excel; la aplicación extrae de ahí el identificador para mostrar la miniatura.
+`products.image_reference` conserva el enlace de origen del Excel para importación o consulta manual. La actualización muestra la imagen guardada en `products.image_path`, mediante un enlace firmado de Storage. No solicita miniaturas a Drive al navegar.
 
 ## Conteo inicial de inventario
 

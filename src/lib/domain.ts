@@ -12,6 +12,8 @@ export type PriceTier = 'emprendedor' | 'vip' | 'premium'
 export type PaymentMethod = 'cash' | 'card_pos' | 'bank_transfer'
 export type Bank = 'BAC' | 'LAFISE' | 'FICOSA'
 export interface Product {
+  revision?: number
+  imagePath?: string | null
   id: string
   barcode: string
   barcodeKind?: 'internal' | 'manufacturer'
@@ -98,6 +100,8 @@ export interface DocumentItemRecord {
   lineTotal: number
 }
 export interface DocumentRecord {
+  previewKind?: 'draft' | 'example'
+  customerTaxId?: string
   id: string
   kind: DocumentKind
   number: string

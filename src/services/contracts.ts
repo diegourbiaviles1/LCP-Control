@@ -8,7 +8,12 @@ import type {
   NewDocument,
   Product,
 } from '../lib/domain'
+import type { ProductInput } from '../features/products/product'
 export interface DataProvider {
+  listProducts(): Promise<Product[]>
+  saveProduct(input: ProductInput): Promise<string>
+  removeProduct(id: string, revision: number): Promise<'archived' | 'deleted'>
+  uploadProductImage(blob: Blob): Promise<string>
   readonly mode: 'demo' | 'supabase'
   getInventory(): Promise<InventoryItem[]>
   findByBarcode(code: string): Promise<Product | null>

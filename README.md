@@ -2,6 +2,8 @@
 
 Aplicación de inventario, facturación y proformas con React, TypeScript, Vite y Supabase.
 
+La actualización de **catálogo editable, fotos propias, Mi cuenta e impresión carta** está descrita en [docs/catalog-and-printing.md](docs/catalog-and-printing.md). Requiere aplicar la nueva migración de catálogo y ejecutar la importación de fotos; guardar el código en Git no modifica Supabase por sí solo.
+
 ## Abrir la aplicación
 
 Requiere Node 22.12 o superior y npm. Desde la carpeta del proyecto:
@@ -26,7 +28,9 @@ Mantener el servidor encendido mientras se utiliza la aplicación. Usar siempre 
 - **Proformas:** emite `PRO-…` con vigencia; no cobra ni modifica inventario. Tiene borradores separados de las facturas.
 - **Documentos emitidos:** muestran los renglones e importes confirmados por la base, quedan bloqueados para edición y pueden imprimirse o compartirse. Para preparar otro documento se usa Nueva factura/Nueva proforma. El RUC del formulario pertenece solo al borrador: el contrato actual de emisión no lo guarda.
 - **WhatsApp y PDF:** comparten un borrador identificado como tal o el documento emitido. WhatsApp abre el mensaje para revisión y envío manual. El PDF usa el menú de compartir cuando el navegador lo permite; en computadora se descarga.
-- **Proveedores:** registro local de contactos y condiciones; todavía no se sincroniza con la base. El alta de productos también sigue siendo una pantalla preparatoria, no un registro definitivo.
+- **Administrar perfumes:** alta, edición, cambio de foto, seis precios y retiro/reactivación para administradores. Requiere la nueva migración de catálogo.
+- **Mi cuenta:** nombre visible, correo y contraseña de la propia cuenta.
+- **Proveedores:** registro local de contactos y condiciones; todavía no se sincroniza con la base.
 
 Los reintentos de emisión y movimientos con los mismos datos conservan el identificador de operación mientras el formulario sigue abierto. Los clics simultáneos comparten una sola solicitud. Si se pierde una respuesta, reintentar desde ese formulario. Cerrar, recargar o empezar otra operación crea una nueva solicitud: ante una emisión dudosa, comprobar el registro en la base antes de repetirla.
 
@@ -42,12 +46,13 @@ El catálogo real no se incluye en `src/data/catalog.json` ni en la compilación
 python scripts/import_catalog.py RUTA_A_LA_CARPETA_CON_LOS_EXCEL
 ```
 
-La salida es `private-data/catalog.json`, ignorada por Git. Este script no carga los datos a Supabase por sí solo. El análisis de origen está en [docs/discovery/catalog-import.md](docs/discovery/catalog-import.md). Las fotos externas necesitan permiso de lectura; si no cargan se muestra una alternativa y el enlace original.
+La salida es `private-data/catalog.json`, ignorada por Git. Este script no carga los datos a Supabase por sí solo. El análisis de origen está en [docs/discovery/catalog-import.md](docs/discovery/catalog-import.md). Las fotos se sirven desde Storage privado después de importarlas. Las pendientes muestran una alternativa y conservan el enlace original para abrirlo manualmente.
 
 ## Comprobación y mantenimiento
 
 ```sh
 npm run check
+npm run test:db
 npm run test:e2e
 ```
 

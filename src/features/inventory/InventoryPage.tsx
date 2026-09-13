@@ -47,7 +47,7 @@ export function InventoryPage({ catalog = false }: { catalog?: boolean }) {
   const [tier, setTier] = useState<PriceTier>('emprendedor')
   const [page, setPage] = useState(1)
   const [selected, setSelected] = useState<Product | null>(null)
-  const { base, demo } = useAccess()
+  const { base, demo, role } = useAccess()
   const items = filterInventory(data ?? [], filters)
   const perPage = 24
   const pages = Math.max(1, Math.ceil(items.length / perPage))
@@ -86,6 +86,14 @@ export function InventoryPage({ catalog = false }: { catalog?: boolean }) {
               : 'Existencias y movimientos por ubicación.'}
           </p>
         </div>
+        {(role === 'admin' || demo) && (
+          <Link
+            className="button button-secondary"
+            to={`${base}/products/manage`}
+          >
+            Administrar perfumes
+          </Link>
+        )}
         <Link className="button button-primary" to={`${base}/scanner`}>
           <ScanLine size={18} />
           Escanear producto
@@ -352,6 +360,14 @@ export function InventoryPage({ catalog = false }: { catalog?: boolean }) {
             </div>
           </div>
           <ProductBarcode code={selected.barcode} />
+          {(role === 'admin' || demo) && (
+            <Link
+              className="button button-primary"
+              to={`${base}/products/${selected.id}/edit`}
+            >
+              Editar perfume
+            </Link>
+          )}
         </Dialog>
       )}
     </>

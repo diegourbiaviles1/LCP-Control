@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { DocumentPrint } from './DocumentPrint'
 import {
   CircleCheckBig,
   FileDown,
@@ -61,7 +62,7 @@ export function DocumentWorkspace({ kind }: { kind: DocumentKind }) {
     ),
   )
   const copy = documentCopy[kind]
-  const { demo } = useAccess()
+  const { demo, base } = useAccess()
   const {
     data,
     loading,
@@ -312,12 +313,20 @@ export function DocumentWorkspace({ kind }: { kind: DocumentKind }) {
           <h1>{copy.title}</h1>
           <p className="muted">{copy.subtitle}</p>
         </div>
+        <a
+          className="button button-secondary"
+          href={`${base}/documents/example/${kind}`}
+          target="_blank"
+          rel="noreferrer"
+        >
+          Ver ejemplo en carta
+        </a>
         <Button variant="secondary" onClick={clear} disabled={busy}>
           <Plus size={18} />
           {kind === 'invoice' ? 'Nueva factura' : 'Nueva proforma'}
         </Button>
       </div>
-      <div className={`invoice-layout doc-${kind}`}>
+      <div className={`invoice-layout doc-${kind} no-print`}>
         <fieldset
           className="invoice-editor no-print"
           disabled={busy || !!issued}
@@ -660,6 +669,11 @@ export function DocumentWorkspace({ kind }: { kind: DocumentKind }) {
           )}
         </Card>
       </div>
+      {shareable && (
+        <div className="document-print-root" aria-hidden="true">
+          <DocumentPrint document={shareable} />
+        </div>
+      )}
     </>
   )
 }

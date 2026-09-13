@@ -17,6 +17,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "test:db": "node tests/database/catalog.mjs",
     "preview": "vite preview --host 127.0.0.1"
   },
   "dependencies": {
@@ -31,6 +32,7 @@
     "zod": "4.5.4"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "@eslint/js": "10.0.1",
     "@playwright/test": "1.63.0",
     "@tailwindcss/vite": "4.3.3",

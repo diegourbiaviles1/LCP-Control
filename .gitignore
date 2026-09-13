@@ -13,3 +13,5 @@ coverage/
 *.tsbuildinfo
 __pycache__/
 *.pyc
+output/
+tmp/

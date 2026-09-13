@@ -23,6 +23,10 @@ function missingConfiguration(): never {
 }
 // Production build without a configured project: nothing to read or write.
 export const unconfiguredAdapter: DataProvider = {
+  listProducts: async () => missingConfiguration(),
+  saveProduct: async () => missingConfiguration(),
+  removeProduct: async () => missingConfiguration(),
+  uploadProductImage: async () => missingConfiguration(),
   mode: 'demo',
   getInventory: async () => missingConfiguration(),
   findByBarcode: async () => missingConfiguration(),
@@ -34,6 +38,10 @@ export const unconfiguredAdapter: DataProvider = {
   recordMovement: async () => missingConfiguration(),
 }
 export const localWrites = {
+  listProducts: async () => unavailable(),
+  saveProduct: async () => unavailable(),
+  removeProduct: async () => unavailable(),
+  uploadProductImage: async () => unavailable(),
   async getBusiness(): Promise<BusinessSettings> {
     return { ...localBusiness }
   },

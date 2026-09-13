@@ -75,6 +75,8 @@ export function draftPreview(
 ): DocumentRecord {
   return {
     id: draft.id,
+    previewKind: 'draft',
+    customerTaxId: draft.taxId,
     kind: draft.kind,
     number: draft.reference,
     customerId: draft.customerId ?? '',

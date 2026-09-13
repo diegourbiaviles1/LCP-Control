@@ -28,13 +28,15 @@ interface BalanceRow {
   quantity: number | null
 }
 interface ProductRow {
+  revision: number
+  image_path: string | null
   id: string
   sku: string
   barcode: string | null
   name: string
   size: number | string | null
   unit: 'oz' | 'ml'
-  category: 'arabian' | 'designer' | null
+  category: 'arabian' | 'designer' | 'niche' | null
   gender: 'male' | 'female' | 'unisex' | null
   catalog_availability: 'sold_out' | 'unspecified' | null
   image_reference: string | null
@@ -53,6 +55,7 @@ interface DocumentItemRow {
   line_total: number | string
 }
 interface DocumentRow {
+  items?: DocumentItemRow[] | null
   id: string
   kind: DocumentKind
   number: string
@@ -72,12 +75,29 @@ interface DocumentRow {
 }
 
 const productSelect = `id,sku,barcode,name,size,unit,category,gender,catalog_availability,
-image_reference,minimum_stock,active,brands(name),
+image_reference,image_path,revision,minimum_stock,active,brands(name),
 product_prices(tier_code,currency,amount),
 inventory_balances(location,quantity)`
 const documentSelect = `id,kind,number,customer_id,customer_name,customer_phone,issuer,tier_code,
 currency,total,location,valid_until,payment_method,notes,created_at,
 document_items(id,product_id,description,quantity,unit_price,line_total)`
+
+// Read-only screens remain usable while the new migration is being applied.
+// Editing still fails explicitly until the write RPCs and columns exist.
+async function activeProductRows(column?: 'barcode' | 'sku', code?: string) {
+  async function query(selection: string) {
+    let request = client().from('products').select(selection).eq('active', true)
+    if (column && code) request = request.eq(column, code)
+    return request.order('name').limit(column ? 1 : 2000)
+  }
+  let result = await query(productSelect)
+  if (result.error?.code === '42703' || result.error?.code === 'PGRST204')
+    result = await query(productSelect.replace('image_path,revision,', ''))
+  if (result.error) fail(result.error)
+  const rows = (result.data ?? []) as unknown as ProductRow[]
+  await signImages(rows)
+  return rows
+}
 
 // PostgREST returns numeric as string to preserve precision; parse explicitly.
 function amount(value: number | string | null): number {
@@ -121,6 +141,15 @@ export function toAppError(
   )
 }
 function fail(error: { message?: string; code?: string } | null): never {
+  if (
+    error?.code === '42703' ||
+    error?.code === 'PGRST202' ||
+    error?.code === 'PGRST204'
+  )
+    throw new AppError(
+      'configuration',
+      'Falta aplicar la actualización de catálogo e imágenes en Supabase. Contacta al administrador.',
+    )
   throw toAppError(error)
 }
 function emptyPrices(): Record<PriceTier, Record<Currency, number>> {
@@ -130,15 +159,27 @@ function emptyPrices(): Record<PriceTier, Record<Currency, number>> {
     premium: { NIO: 0, USD: 0 },
   }
 }
-// image_reference guarda el enlace original de Drive tal como venía en el Excel.
-// De ahí se deriva la miniatura; si algún día se guarda sólo el id, también sirve.
-function driveId(reference: string | null): string | null {
-  if (!reference) return null
-  const match =
-    /\/d\/([A-Za-z0-9_-]+)/.exec(reference) ??
-    /[?&]id=([A-Za-z0-9_-]+)/.exec(reference)
-  if (match) return match[1]
-  return /^[A-Za-z0-9_-]{10,}$/.test(reference) ? reference : null
+// Drive is retained only as a manually opened source link. The app loads images
+// from its own private Storage bucket; URLs are signed once and reused.
+const imageCache = new Map<string, { url: string; expires: number }>()
+async function signImages(rows: ProductRow[]) {
+  const paths = [
+    ...new Set(rows.flatMap((row) => (row.image_path ? [row.image_path] : []))),
+  ]
+  const missing = paths.filter(
+    (path) => (imageCache.get(path)?.expires ?? 0) < Date.now(),
+  )
+  if (!missing.length) return
+  const { data, error } = await client()
+    .storage.from('product-images')
+    .createSignedUrls(missing, 86400)
+  if (error) return // Catalogue stays usable when photo storage is unavailable.
+  for (const image of data ?? [])
+    if (image.path && image.signedUrl)
+      imageCache.set(image.path, {
+        url: image.signedUrl,
+        expires: Date.now() + 23 * 3600000,
+      })
 }
 function toProduct(row: ProductRow): Product {
   const prices = emptyPrices()
@@ -147,8 +188,9 @@ function toProduct(row: ProductRow): Product {
   const size = row.size === null ? null : amount(row.size)
   const category: Category = row.category ?? 'unspecified'
   const gender: Gender = row.gender ?? 'unspecified'
-  const image = driveId(row.image_reference)
   return {
+    revision: row.revision,
+    imagePath: row.image_path,
     id: row.id,
     barcode: row.sku,
     barcodeKind: 'internal',
@@ -166,8 +208,8 @@ function toProduct(row: ProductRow): Product {
     active: row.active,
     availabilityNote:
       row.catalog_availability === 'sold_out' ? 'Agotado' : 'Por confirmar',
-    imageUrl: image
-      ? `https://drive.google.com/thumbnail?id=${image}&sz=w400`
+    imageUrl: row.image_path
+      ? (imageCache.get(row.image_path)?.url ?? null)
       : null,
     imageSource: row.image_reference,
   }
@@ -198,7 +240,7 @@ function toDocument(row: DocumentRow): DocumentRecord {
     paymentMethod: row.payment_method,
     notes: row.notes,
     createdAt: row.created_at,
-    items: (row.document_items ?? []).map((item) => ({
+    items: (row.document_items ?? row.items ?? []).map((item) => ({
       id: item.id,
       productId: item.product_id,
       description: item.description,
@@ -211,29 +253,55 @@ function toDocument(row: DocumentRow): DocumentRecord {
 
 export const supabaseAdapter: DataProvider = {
   mode: 'supabase',
-  async getInventory() {
+  async listProducts() {
     const { data, error } = await client()
       .from('products')
       .select(productSelect)
-      .eq('active', true)
       .order('name')
       .limit(2000)
     if (error) fail(error)
-    return ((data ?? []) as unknown as ProductRow[]).map(toItem)
+    const rows = (data ?? []) as unknown as ProductRow[]
+    await signImages(rows)
+    return rows.map(toProduct)
+  },
+  async saveProduct(input) {
+    const { data, error } = await client().rpc('save_catalog_product', {
+      p_payload: input,
+    })
+    if (error) fail(error)
+    return data as string
+  },
+  async removeProduct(id, revision) {
+    const { data, error } = await client().rpc('remove_catalog_product', {
+      p_id: id,
+      p_revision: revision,
+    })
+    if (error) fail(error)
+    return data as 'archived' | 'deleted'
+  },
+  async uploadProductImage(blob) {
+    const { data: auth, error: authError } = await client().auth.getUser()
+    if (authError || !auth.user) fail(authError)
+    const path = `${auth.user!.id}/${crypto.randomUUID()}.webp`
+    const { error } = await client()
+      .storage.from('product-images')
+      .upload(path, blob, {
+        contentType: 'image/webp',
+        cacheControl: '31536000',
+        upsert: false,
+      })
+    if (error) fail(error)
+    return path
+  },
+  async getInventory() {
+    return (await activeProductRows()).map(toItem)
   },
   // Two equality filters instead of an `or(...)` string: the scanned code is
   // never interpolated into PostgREST filter syntax.
   async findByBarcode(code) {
     for (const column of ['barcode', 'sku'] as const) {
-      const { data, error } = await client()
-        .from('products')
-        .select(productSelect)
-        .eq(column, code)
-        .eq('active', true)
-        .limit(1)
-        .maybeSingle()
-      if (error) fail(error)
-      if (data) return toProduct(data as unknown as ProductRow)
+      const [row] = await activeProductRows(column, code)
+      if (row) return toProduct(row)
     }
     return null
   },

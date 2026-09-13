@@ -66,7 +66,7 @@ it('reintenta con el mismo ID y muestra el precio confirmado, bloqueando la edic
   await user.click(screen.getByRole('button', { name: 'Emitir factura' }))
   expect(await screen.findByRole('alert')).toHaveTextContent('conexión')
   await user.click(screen.getByRole('button', { name: 'Emitir factura' }))
-  await screen.findByText('Producto confirmado')
+  await screen.findByText('Producto confirmado', { selector: 'strong' })
   expect(createDocument.mock.calls[0][0].requestId).toBe(
     createDocument.mock.calls[1][0].requestId,
   )

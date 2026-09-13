@@ -12,6 +12,7 @@ import {
   Truck,
   Menu,
   X,
+  UserRound,
 } from 'lucide-react'
 import { useAuth } from '../features/auth/AuthContext'
 import { AccessContext } from './AccessContext'
@@ -27,6 +28,7 @@ const links = [
   ['/products', 'Catálogo', Layers3],
   ['/alerts', 'Alertas', Bell],
   ['/suppliers', 'Proveedores', Truck],
+  ['/account', 'Mi cuenta', UserRound],
 ] as const
 export function AppShell({ demo = false }: { demo?: boolean }) {
   const { user, service } = useAuth()

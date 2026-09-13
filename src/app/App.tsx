@@ -7,7 +7,10 @@ import { EmptyState, LoadingState } from '../components/ui'
 import { DashboardPage } from '../features/dashboard/DashboardPage'
 import { InventoryPage } from '../features/inventory/InventoryPage'
 import { AlertsPage } from '../features/alerts/AlertsPage'
-import { ProductDraftPage } from '../features/products/ProductDraftPage'
+import { ProductEditorPage } from '../features/products/ProductEditorPage'
+import { ProductManagementPage } from '../features/products/ProductManagementPage'
+import { AccountPage } from '../features/auth/AccountPage'
+import { DocumentExamplePage } from '../features/sales/DocumentExamplePage'
 import { SuppliersPage } from '../features/suppliers/SuppliersPage'
 const ScannerPage = lazy(() =>
   import('../features/scanner/ScannerPage').then((page) => ({
@@ -34,7 +37,11 @@ export function App() {
       <Route path="sales" element={<SalesPage />} />
       <Route path="proformas" element={<ProformaPage />} />
       <Route path="products" element={<InventoryPage catalog />} />
-      <Route path="products/new" element={<ProductDraftPage />} />
+      <Route path="products/new" element={<ProductEditorPage />} />
+      <Route path="products/manage" element={<ProductManagementPage />} />
+      <Route path="products/:id/edit" element={<ProductEditorPage />} />
+      <Route path="account" element={<AccountPage />} />
+      <Route path="documents/example/:kind" element={<DocumentExamplePage />} />
       <Route path="alerts" element={<AlertsPage />} />
     </>
   )

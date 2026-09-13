@@ -1,9 +1,4 @@
-import type {
-  Category,
-  Gender,
-  InventoryItem,
-  Product,
-} from '../../lib/domain'
+import type { Category, Gender, InventoryItem, Product } from '../../lib/domain'
 import type { DataProvider } from '../contracts'
 import { localWrites } from './local'
 // Catálogo sintético de la vista local y de las pruebas: marcas, nombres, códigos
@@ -80,4 +75,7 @@ export const catalogAdapter: DataProvider = {
     return { count: 0, totals: { NIO: 0, USD: 0 } }
   },
   ...localWrites,
+  async listProducts() {
+    return structuredClone(catalogProducts)
+  },
 }

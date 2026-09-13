@@ -35,6 +35,12 @@ export function whatsappMessage(document: DocumentRecord): string {
     `Cliente: ${document.customerName}`,
     `Fecha: ${formatDate(document.createdAt)}`,
   ]
+  if (document.previewKind)
+    parts.push(
+      document.previewKind === 'example'
+        ? 'EJEMPLO / SIN EMITIR'
+        : 'BORRADOR / SIN EMITIR',
+    )
   if (document.kind === 'proforma' && document.validUntil)
     parts.push(`Válida hasta: ${formatDate(`${document.validUntil}T12:00:00`)}`)
   if (document.kind === 'invoice' && document.paymentMethod)
