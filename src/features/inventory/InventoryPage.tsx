@@ -1,3 +1,4 @@
+import { can } from '../../lib/permissions'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ScanLine, ArrowLeft, ArrowRight } from 'lucide-react'
@@ -86,7 +87,7 @@ export function InventoryPage({ catalog = false }: { catalog?: boolean }) {
               : 'Existencias y movimientos por ubicación.'}
           </p>
         </div>
-        {(role === 'admin' || demo) && (
+        {(can(role, 'product.manage') || demo) && (
           <Link
             className="button button-secondary"
             to={`${base}/products/manage`}
@@ -360,7 +361,7 @@ export function InventoryPage({ catalog = false }: { catalog?: boolean }) {
             </div>
           </div>
           <ProductBarcode code={selected.barcode} />
-          {(role === 'admin' || demo) && (
+          {(can(role, 'product.manage') || demo) && (
             <Link
               className="button button-primary"
               to={`${base}/products/${selected.id}/edit`}

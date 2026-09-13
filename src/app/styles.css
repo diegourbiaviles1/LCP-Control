@@ -275,6 +275,7 @@ input::placeholder {
   border-right: 1px solid #e2e6dd;
   padding: 32px 20px;
   z-index: 30;
+  overflow-y: auto;
 }
 .sidebar .brand {
   margin: 0 8px 45px;

@@ -93,12 +93,17 @@ export function LoginPage() {
             <ArrowRight size={18} />
           </Button>
         </form>
+        {authConfigured && (
+          <Link className="demo-link" to="/activate">
+            Activar mi cuenta
+          </Link>
+        )}
         {import.meta.env.DEV && (
           <>
             {!authConfigured && (
               <Feedback>
-                Puedes consultar el catálogo de prueba y preparar borradores
-                sin iniciar sesión.
+                Puedes consultar el catálogo de prueba y preparar borradores sin
+                iniciar sesión.
               </Feedback>
             )}
             <Link className="demo-link" to="/demo">

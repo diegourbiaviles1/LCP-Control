@@ -55,6 +55,7 @@ interface DocumentItemRow {
   line_total: number | string
 }
 interface DocumentRow {
+  customer_tax_id?: string
   items?: DocumentItemRow[] | null
   id: string
   kind: DocumentKind
@@ -79,7 +80,7 @@ image_reference,image_path,revision,minimum_stock,active,brands(name),
 product_prices(tier_code,currency,amount),
 inventory_balances(location,quantity)`
 const documentSelect = `id,kind,number,customer_id,customer_name,customer_phone,issuer,tier_code,
-currency,total,location,valid_until,payment_method,notes,created_at,
+currency,total,location,valid_until,payment_method,notes,created_at,customer_tax_id,
 document_items(id,product_id,description,quantity,unit_price,line_total)`
 
 // Read-only screens remain usable while the new migration is being applied.
@@ -231,6 +232,7 @@ function toDocument(row: DocumentRow): DocumentRecord {
     customerId: row.customer_id,
     customerName: row.customer_name,
     customerPhone: row.customer_phone,
+    customerTaxId: row.customer_tax_id ?? '',
     issuer: row.issuer,
     tier: row.tier_code,
     currency: row.currency,
@@ -385,6 +387,7 @@ export const supabaseAdapter: DataProvider = {
         kind: input.kind,
         customerId: input.customerId ?? null,
         customerName: input.customerName ?? '',
+        customerTaxId: input.customerTaxId ?? '',
         customerPhone: input.customerPhone ?? null,
         tier: input.tier,
         currency: input.currency,

@@ -1,4 +1,5 @@
-export type UserRole = 'admin' | 'operator'
+export type UserRole =
+  'superadmin' | 'admin' | 'operator' | 'warehouse' | 'viewer'
 export interface UserProfile {
   id: string
   email: string
@@ -124,6 +125,7 @@ export interface NewDocumentItem {
   quantity: number
 }
 export interface NewDocument {
+  customerTaxId?: string
   requestId: string
   kind: DocumentKind
   customerId?: string | null

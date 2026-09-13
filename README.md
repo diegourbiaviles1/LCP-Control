@@ -2,7 +2,7 @@
 
 Aplicación de inventario, facturación y proformas con React, TypeScript, Vite y Supabase.
 
-La actualización de **catálogo editable, fotos propias, Mi cuenta e impresión carta** está descrita en [docs/catalog-and-printing.md](docs/catalog-and-printing.md). Requiere aplicar la nueva migración de catálogo y ejecutar la importación de fotos; guardar el código en Git no modifica Supabase por sí solo.
+El proyecto activo ya tiene catálogo, precios, fotos privadas y persistencia de clientes, proveedores, documentos y permisos. El estado de la base y los pasos pendientes de activación están en [docs/database.md](docs/database.md); edición e impresión carta, en [docs/catalog-and-printing.md](docs/catalog-and-printing.md). Guardar código en Git no aplica migraciones automáticamente en otros proyectos.
 
 ## Abrir la aplicación
 
@@ -22,15 +22,18 @@ Mantener el servidor encendido mientras se utiliza la aplicación. Usar siempre 
 ## Flujos disponibles
 
 - **Catálogo e inventario:** búsqueda y filtros, precios por lista y moneda, fotos y etiquetas CODE128. El código interno procede de `products.sku`; el EAN/UPC del fabricante, si existe, se conserva por separado. Ambos sirven para buscar productos activos.
-- **Movimientos reales:** Entrada y Ajuste para administradores; Salida y Dañado también para operadores. Ajuste establece el saldo total de una ubicación y admite cero. Un producto sin contar requiere primero un ajuste. La confirmación llama a la función transaccional de la base y actualiza la vista.
+- **Movimientos reales:** Entrada y Ajuste para administradores y personal de inventario; Salida y Dañado también para ventas. Ajuste establece el saldo total de una ubicación y admite cero. Un producto sin contar requiere primero un ajuste. La confirmación llama a la función transaccional de la base y actualiza la vista.
 - **Escáner:** búsqueda manual y cámara, con acciones de inventario sobre el producto encontrado. Requiere localhost o HTTPS y permiso de cámara. La cámara se libera al detenerla o salir.
 - **Facturación:** emite `FAC-…` con cliente, teléfono, forma de pago y ubicación; descuenta inventario al confirmarse en la base. No es un comprobante fiscal y no calcula impuestos.
 - **Proformas:** emite `PRO-…` con vigencia; no cobra ni modifica inventario. Tiene borradores separados de las facturas.
-- **Documentos emitidos:** muestran los renglones e importes confirmados por la base, quedan bloqueados para edición y pueden imprimirse o compartirse. Para preparar otro documento se usa Nueva factura/Nueva proforma. El RUC del formulario pertenece solo al borrador: el contrato actual de emisión no lo guarda.
+- **Documentos emitidos:** muestran los renglones e importes confirmados por la base, quedan bloqueados para edición y pueden imprimirse o compartirse. Para preparar otro documento se usa Nueva factura/Nueva proforma. El RUC del cliente se conserva al emitir. El historial permite reabrir los últimos 200 documentos autorizados y reimprimirlos.
 - **WhatsApp y PDF:** comparten un borrador identificado como tal o el documento emitido. WhatsApp abre el mensaje para revisión y envío manual. El PDF usa el menú de compartir cuando el navegador lo permite; en computadora se descarga.
 - **Administrar perfumes:** alta, edición, cambio de foto, seis precios y retiro/reactivación para administradores. Requiere la nueva migración de catálogo.
 - **Mi cuenta:** nombre visible, correo y contraseña de la propia cuenta.
-- **Proveedores:** registro local de contactos y condiciones; todavía no se sincroniza con la base.
+- **Clientes:** alta, edición, archivo, contacto, RUC y lista de precios; selección directa al facturar/cotizar.
+- **Usuarios:** autorización previa de correos, cinco roles y desactivación conservando el historial. Cada persona activa su acceso en `/activate`. El envío SMTP a usuarios fuera del equipo de Supabase está pendiente.
+- **Negocio:** nombre comercial, dirección y teléfono editables.
+- **Proveedores:** contactos, condiciones, notas y estado compartidos en Supabase, con revisión de cambios concurrentes.
 
 Los reintentos de emisión y movimientos con los mismos datos conservan el identificador de operación mientras el formulario sigue abierto. Los clics simultáneos comparten una sola solicitud. Si se pierde una respuesta, reintentar desde ese formulario. Cerrar, recargar o empezar otra operación crea una nueva solicitud: ante una emisión dudosa, comprobar el registro en la base antes de repetirla.
 
@@ -38,7 +41,7 @@ Los reintentos de emisión y movimientos con los mismos datos conservan el ident
 
 Los registros reales viven en Supabase; los precios y existencias se validan allí. Las políticas de acceso exigen una cuenta activa del personal. La aplicación obtiene el rol de `staff_members`, no de metadatos editables del navegador.
 
-Borradores y proveedores locales se guardan por cuenta y por vista (`demo` o usuario). No se sincronizan entre equipos y se pierden al borrar los datos del sitio. Las claves antiguas sin cuenta se conservan sin modificación, pero no se incorporan automáticamente a un usuario: hace falta identificar a quién pertenecen antes de recuperarlas.
+Borradores de facturas y proformas se guardan por cuenta en Supabase y se sincronizan entre equipos con detección de conflictos. Clientes y proveedores también viven en la base. Solo la demostración mantiene registros locales; las preferencias y frases se conservan en el navegador. Los datos locales antiguos no se importan automáticamente.
 
 El catálogo real no se incluye en `src/data/catalog.json` ni en la compilación. El importador genera un archivo privado:
 

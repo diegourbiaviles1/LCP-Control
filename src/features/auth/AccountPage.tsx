@@ -1,3 +1,4 @@
+import { roleLabels } from '../../lib/permissions'
 import { useState, type FormEvent } from 'react'
 import { useAuth } from './AuthContext'
 import { useAccess } from '../../app/AccessContext'
@@ -118,11 +119,11 @@ function AccountForm({ initialName }: { initialName: string }) {
             />
             <p className="muted">
               Rol:{' '}
-              {user?.role === 'admin'
-                ? 'Administrador'
-                : demo
-                  ? 'Ejemplo'
-                  : 'Operador'}
+              {demo
+                ? 'Ejemplo'
+                : user?.role
+                  ? roleLabels[user.role]
+                  : 'Sin permisos'}
             </p>
             <Button disabled={busy || demo}>Guardar nombre</Button>
           </form>

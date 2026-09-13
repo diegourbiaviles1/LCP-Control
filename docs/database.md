@@ -1,91 +1,79 @@
 # Base de datos del negocio
 
-Proyecto Supabase `LCP-Control` (`vqicpwbwuatlyfdzpfne`, región `us-east-2`, PostgreSQL 17). El esquema completo está versionado en [`supabase/migrations`](../supabase/migrations); ese directorio es la fuente de verdad y reproduce la base desde cero.
+Proyecto activo: **La Casa del Perfume**, `xkpujpoocsbkychstrne`. El proyecto anterior no se modificó. Todas las migraciones hasta `20260914012000_document_customer_details.sql` están aplicadas en este proyecto; las migraciones de endurecimiento toleran que un proyecto nuevo no tenga la función histórica `rls_auto_enable`.
 
-La migración nueva `20260913120000_catalog_management_and_images.sql` está preparada y probada localmente, **pendiente de aplicar al proyecto remoto**. Añade catálogo editable, revisión de cambios, fotos en Storage y edición del nombre propio. Ver [activación y límites](catalog-and-printing.md).
+## Datos cargados y trazabilidad
 
-## Qué guarda
+- 260 productos, 38 marcas, 3 listas y 1,560 precios independientes NIO/USD. La comparación con los valores originales dio cero diferencias.
+- 780 filas de origen, sus tres archivos, hojas y hashes SHA-256 en `private.import_sources/import_rows`. La identidad de unión es marca + nombre + presentación.
+- 520 saldos por Bodega/Tienda sin contar (`NULL`); no se deducen existencias de las listas de precios.
+- 256 fotos WebP privadas, 8,212,792 bytes en total, asociadas a 258 productos. Los originales ocupaban 102,641,788 bytes y se conservaron localmente. Se limitó el lado mayor a 1,000 píxeles sin ampliar, calidad 80.
+- Sin imagen de origen: LCP-0209 (Phantom Parfum con desodorante) y LCP-0210 (One Million EDT con gel). Se pueden añadir desde el editor.
+- Clientes, proveedores, documentos y movimientos comienzan vacíos, por decisión del usuario. No se trasladaron operaciones del proyecto anterior.
 
-| Tabla                 | Contenido                                                                                                                                                     |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `business_settings`   | Nombre, dirección y teléfono del negocio. Una sola fila; se copia dentro de cada documento emitido.                                                           |
-| `brands`              | 38 marcas del catálogo.                                                                                                                                       |
-| `products`            | 260 referencias: SKU interno `LCP-…`, nombre, marca, presentación, categoría, género, foto y mínimo de inventario.                                            |
-| `price_tiers`         | Emprendedor, VIP y Premium.                                                                                                                                   |
-| `product_prices`      | 1 560 precios: cada producto × cada lista × cada moneda (NIO y USD), tomados de los tres Excel. Ningún importe se deriva de otro ni se aplica tipo de cambio. |
-| `inventory_balances`  | Saldo por producto y ubicación (Bodega / Tienda). `NULL` significa «nunca contado», que no es lo mismo que cero.                                              |
-| `inventory_movements` | Bitácora de entradas, salidas, daños, ajustes y ventas, con saldo antes y después y el usuario responsable.                                                   |
-| `customers`           | Clientes con teléfono único y la lista de precios que les corresponde.                                                                                        |
-| `documents`           | Facturas y proformas emitidas, con su número, cliente, lista, moneda, total y notas.                                                                          |
-| `document_items`      | Renglones de cada documento, con la descripción congelada al momento de emitir.                                                                               |
-| `staff_members`       | Cuentas del personal y su rol (`admin` / `operator`).                                                                                                         |
+Para preparar una importación revisable, sin ejecutar escrituras remotas:
 
-El esquema `private` guarda los contadores de numeración y la trazabilidad de la importación de los Excel. No está expuesto por la API.
-
-## Facturas y proformas
-
-Ambas viven en `documents` y se distinguen por la columna `kind`:
-
-- `invoice` — numeración `FAC-000001`, exige ubicación y forma de pago, descuenta existencias y deja un movimiento `SALE` por renglón.
-- `proforma` — numeración `PRO-000001`, exige fecha de vigencia, no toca el inventario y no registra pago.
-
-Una restricción de la tabla impide mezclarlos: una factura no puede llevar vigencia y una proforma no puede llevar ubicación ni forma de pago. La aplicación tampoco los mezcla: son dos pantallas con almacenamientos de borradores distintos.
-
-## Cómo se escribe
-
-Las tablas del negocio sólo conceden `select` a usuarios autenticados, y sus políticas exigen una fila activa en `staff_members`. Los documentos y movimientos se escriben mediante:
-
-- `create_document(p_payload jsonb)` — valida tipo, lista, moneda, cantidades y existencias; bloquea las filas en un orden fijo para que dos ventas simultáneas no vendan de más; y devuelve el documento con sus renglones.
-- `record_inventory_movement(p_payload jsonb)` — registra entrada, salida, daño o ajuste, y actualiza el saldo. Sólo un `admin` puede registrar entradas y ajustes.
-
-Ambas reciben un `requestId` y son idempotentes: repetir la misma llamada devuelve el documento o movimiento ya creado en vez de duplicarlo. Si los datos cambiaron, fallan en lugar de sobrescribir.
-
-La nueva migración añade `save_catalog_product` y `remove_catalog_product`, exclusivas de administradores, y `update_my_profile`, que cambia únicamente el nombre de la cuenta activa. Catálogo usa revisiones para detectar cambios concurrentes y una bitácora privada. Las fotografías usan las políticas del bucket privado `product-images`; el navegador no recibe una clave administrativa.
-
-## Dar de alta al personal
-
-El rol vive en un solo lugar: la tabla `staff_members`. Tanto la aplicación como las políticas de PostgreSQL lo leen de ahí, así que dar de alta a alguien es un solo paso y no hay nada que sincronizar a mano. El rol que venga en el token se ignora.
-
-Por cada dueño o empleado:
-
-1. En el panel de Supabase, **Authentication → Users → Add user → Create new user**, con su correo y contraseña. Marcar **Auto Confirm User** para que pueda entrar sin confirmar por correo.
-2. Copiar el `User UID` que aparece en la lista y ejecutar en el **SQL Editor**:
-
-```sql
-insert into public.staff_members (user_id, display_name, role)
-values ('UUID-DEL-USUARIO', 'Nombre visible', 'admin');
+```sh
+python scripts/prepare_database_catalog.py CARPETA_CON_LOS_TRES_EXCEL
 ```
 
-Los dueños usan `admin`; los empleados, `operator`. Un `operator` puede facturar, cotizar, registrar salidas y daños; no puede registrar entradas ni ajustes de inventario, ni cambiar la lista de precios asignada a un cliente.
+La salida en `private-data/database-import` está excluida de Git. No incorporar los Excel, precios privados, fotos originales ni credenciales al repositorio. Los SKU LCP son internos; `products.barcode` sigue reservado para EAN/UPC comprobados.
 
-Sin fila en `staff_members`, la cuenta inicia sesión pero la aplicación le muestra que su acceso no está habilitado, y la base no le entrega ningún dato.
+## Persistencia del programa
 
-Para retirar el acceso de alguien sin borrar su historial:
+| Registro           | Ubicación y comportamiento                                                                                                                                           |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Catálogo           | `products`, `brands`, `product_prices`; alta, edición, seis precios, imagen, archivo/reactivación y revisiones concurrentes.                                         |
+| Imágenes           | Bucket privado `product-images`, máximo 5 MB por archivo, JPEG/PNG/WebP. La aplicación optimiza nuevas fotos y usa enlaces firmados. No solicita miniaturas a Drive. |
+| Existencias        | `inventory_balances` y `inventory_movements`; escrituras transaccionales mediante `record_inventory_movement`.                                                       |
+| Clientes           | `customers`; nombre, teléfono, correo, RUC, dirección, notas, estado y lista de precios. Edición mediante `save_customer`.                                           |
+| Proveedores        | `suppliers`; contacto, teléfono, correo, RUC, dirección, marcas, condiciones y notas. Edición mediante `save_supplier`.                                              |
+| Facturas/proformas | `documents` y `document_items`; numeraciones FAC/PRO separadas, datos y precios congelados, RUC del cliente incluido.                                                |
+| Borradores         | `user_drafts`; facturas/proformas separadas por usuario, sincronizadas entre equipos y protegidas contra sobreescrituras concurrentes.                               |
+| Negocio            | `business_settings`; nombre, dirección y teléfono editables; cambios solo afectan documentos nuevos.                                                                 |
+| Acceso             | Supabase Auth guarda las credenciales. `staff_members` es la única fuente de permisos. `private.pending_staff` reserva correos y roles antes de activar cuentas.     |
 
-```sql
-update public.staff_members set active = false where user_id = 'UUID-DEL-USUARIO';
-```
+La demostración de desarrollo conserva sus datos sintéticos y borradores/proveedores locales. Preferencias de interfaz y rotación de frases siguen en el navegador; no son registros del negocio.
 
-Las facturas y movimientos que registró siguen apuntando a su cuenta; sólo deja de entrar.
+## Permisos y activación
 
-## Códigos internos
+| Rol           | Acceso                                                                                                                                                 |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| SuperAdmin    | Administración completa y gestión de otros SuperAdmin.                                                                                                 |
+| Administrador | Catálogo, imágenes, clientes, proveedores, documentos, inventario, negocio y personal; no puede conceder ni modificar SuperAdmin.                      |
+| Ventas        | Catálogo, existencias, clientes, facturación/proformas, salidas y daños. Solo ve sus documentos y movimientos; no cambia tarifas asignadas a clientes. |
+| Inventario    | Catálogo, existencias, proveedores en consulta, entradas, salidas, daños y ajustes; solo ve sus movimientos. Sin clientes ni documentos comerciales.   |
+| Solo consulta | Catálogo, fotos y existencias; sin escrituras comerciales.                                                                                             |
 
-`products.sku` es el código interno que se imprime en la etiqueta y reconoce el escáner. `products.barcode` queda reservado para el EAN/UPC del fabricante, que también permite buscar el producto cuando se registra. La vista local `/demo` trabaja con 30 productos inventados y códigos `DEMO-0001` a `DEMO-0030`; no se usan para operar en la base.
+Los tres correos indicados por el usuario se autorizaron directamente en el proyecto, sin incluirlos en migraciones públicas. El correo de la empresa tiene SuperAdmin pendiente; los dos desarrolladores, Administrador pendiente. No se asignaron contraseñas compartidas ni se enviaron invitaciones.
 
-`products.image_reference` conserva el enlace de origen del Excel para importación o consulta manual. La actualización muestra la imagen guardada en `products.image_path`, mediante un enlace firmado de Storage. No solicita miniaturas a Drive al navegar.
+1. Un administrador autoriza un correo y su rol en **Usuarios**.
+2. La persona abre `/activate`, elige su propia contraseña y confirma su correo.
+3. El disparador de Auth crea la fila en `staff_members` y consume la autorización pendiente. Un correo no autorizado no puede registrarse.
+4. Para retirar acceso, deshabilitarlo desde Usuarios. Se conserva el historial. No se permite quitarse los propios permisos ni eliminar al último SuperAdmin activo.
 
-## Conteo inicial de inventario
+**Pendiente de puesta en marcha:** el proyecto usa el SMTP de prueba de Supabase. Solo permite confirmaciones a miembros del equipo de Supabase, no a cualquier correo autorizado dentro de la aplicación. Para usuarios ajenos al equipo, configurar un proveedor SMTP en Authentication → Emails → SMTP Settings. No desactivar la confirmación de correo ni dar acceso al panel administrativo a empleados para sortear este límite. [Documentación oficial de SMTP](https://supabase.com/docs/guides/auth/auth-smtp).
 
-Los 520 saldos están en `NULL` porque los Excel no traen existencias. Una factura no se puede emitir contra un producto sin conteo: primero hay que registrar un **Ajuste** desde Inventario, que fija la cantidad real de esa ubicación.
+Site URL ya apunta a `http://127.0.0.1:5173/login`, el programa local, para regresar después de confirmar el correo. Actualizarla al dominio HTTPS definitivo antes de distribuir la aplicación. No se ha probado aún el inicio de sesión de una cuenta personal activada.
 
-## Conectar la aplicación
+## Operación y comprobaciones
 
-En `.env.local` (ignorado por Git):
+Las escrituras del negocio pasan por funciones con comprobaciones de rol, validaciones y límites de uso. Las tablas no conceden escritura directa a usuarios del navegador. Las lecturas aplican RLS, y el almacenamiento sigue siendo privado. Deshabilitar una cuenta corta el acceso en la base aunque su token no haya expirado.
+
+`create_document` y `record_inventory_movement` reciben un requestId idempotente. Facturar bloquea y descuenta saldos; proformar no toca inventario. Una factura requiere conteo inicial mediante **Inventario → Ajuste**. Ninguna cantidad se inventó durante la carga.
+
+El historial de documentos permite consultar las últimas 200 facturas o proformas autorizadas y reimprimirlas en carta/PDF; movimientos muestra los últimos 200 registros autorizados. Clientes/proveedores muestran hasta 2,000 registros por pantalla. Para volúmenes mayores, añadir paginación de servidor.
+
+Las pruebas locales incluyen 23 comprobaciones PostgreSQL de permisos, revisiones, persistencia, instantáneas y archivo de productos. En la base real se verificaron escrituras de cliente, proveedor y borrador, lectura de las 256 fotos privadas y aislamiento de solo consulta dentro de una transacción revertida: no quedaron registros de prueba.
+
+El asesor de seguridad informa seis tablas privadas con RLS sin políticas: es intencional, no se consultan directamente desde la API. También advierte sobre nueve RPC SECURITY DEFINER accesibles a authenticated; son las escrituras y consultas autorizadas del programa, con controles internos de rol y search_path vacío. [Detalle del aviso](https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable). No se amplió el acceso público para ocultar estas advertencias.
+
+## Configuración local
 
 ```env
-VITE_SUPABASE_URL=https://vqicpwbwuatlyfdzpfne.supabase.co
+VITE_SUPABASE_URL=https://xkpujpoocsbkychstrne.supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 VITE_DATA_MODE=supabase
 ```
 
-La clave publicable está en **Project Settings → API Keys**. Nunca usar `service_role` ni claves secretas en el navegador. La ruta `/demo` usa únicamente datos sintéticos y existe solo en desarrollo. Las rutas privadas requieren `VITE_DATA_MODE=supabase` y la configuración correspondiente; sin ella no acceden a datos reales ni sirven un catálogo de reemplazo.
+Usar `.env.local`, ignorado por Git. Nunca usar claves secretas o service_role en el navegador. La publicación en HTTPS, el correo SMTP, el conteo físico, las dos fotos faltantes y los datos fiscales definitivos requieren completar la puesta en marcha.

@@ -14,6 +14,7 @@ import { useQuery } from '../../lib/useQuery'
 import { formatDate } from '../../lib/format'
 import { useAccess } from '../../app/AccessContext'
 import { Reflection } from './Reflection'
+import { can } from '../../lib/permissions'
 const actions = [
   ['/products', 'Catálogo', 'Consultar perfumes, fotos y precios.', Package],
   [
@@ -40,7 +41,7 @@ export function DashboardPage() {
   const { data, loading, error, retry } = useQuery(
     inventoryService.getInventory,
   )
-  const { base } = useAccess()
+  const { base, demo, role } = useAccess()
   if (loading) return <LoadingState />
   if (error || !data)
     return (
@@ -50,6 +51,12 @@ export function DashboardPage() {
       />
     )
   const brands = new Set(data.map((item) => item.product.brand)).size
+  const balances = data.flatMap((item) => [
+    item.quantities.store,
+    item.quantities.warehouse,
+  ])
+  const pending = balances.filter((q) => q == null).length
+  const units = balances.reduce<number>((sum, q) => sum + (q ?? 0), 0)
   return (
     <>
       <div className="page-heading">
@@ -67,7 +74,13 @@ export function DashboardPage() {
           ['Referencias', data.length, 'Catálogo mayorista'],
           ['Marcas', brands, 'En las listas recibidas'],
           ['Listas de precios', 3, 'Emprendedor, VIP y Premium'],
-          ['Existencias', '—', 'Pendientes de registrar'],
+          [
+            'Existencias',
+            pending === balances.length ? '—' : units,
+            pending
+              ? `${pending} saldos pendientes de conteo`
+              : 'Unidades entre Bodega y Tienda',
+          ],
         ].map(([title, value, detail]) => (
           <Card className="stat-card" key={title}>
             <div>
@@ -80,14 +93,24 @@ export function DashboardPage() {
         ))}
       </div>
       <div className="home-actions">
-        {actions.map(([path, title, description, Icon]) => (
-          <Link className="home-action card" key={path} to={`${base}${path}`}>
-            <Icon size={22} />
-            <h2>{title}</h2>
-            <p>{description}</p>
-            <ArrowRight size={18} />
-          </Link>
-        ))}
+        {actions
+          .filter(
+            ([path]) =>
+              demo ||
+              (path === '/sales'
+                ? can(role, 'sale.create')
+                : path === '/suppliers'
+                  ? can(role, 'supplier.read')
+                  : true),
+          )
+          .map(([path, title, description, Icon]) => (
+            <Link className="home-action card" key={path} to={`${base}${path}`}>
+              <Icon size={22} />
+              <h2>{title}</h2>
+              <p>{description}</p>
+              <ArrowRight size={18} />
+            </Link>
+          ))}
       </div>
       <Link className="scan-shortcut" to={`${base}/scanner`}>
         <ScanLine size={28} />
@@ -100,8 +123,10 @@ export function DashboardPage() {
         <ArrowRight size={20} />
       </Link>
       <p className="workspace-disclaimer">
-        Los precios provienen de las listas de mayor. Las existencias aún no
-        están cargadas.
+        Los precios se consultan por lista y moneda.{' '}
+        {pending
+          ? 'Completa los conteos pendientes desde Inventario.'
+          : 'Las existencias se actualizan con los movimientos confirmados.'}
       </p>
     </>
   )

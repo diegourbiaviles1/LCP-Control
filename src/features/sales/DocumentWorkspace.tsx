@@ -1,4 +1,6 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { listContacts } from '../../services/workspace'
 import { DocumentPrint } from './DocumentPrint'
 import {
   CircleCheckBig,
@@ -23,7 +25,7 @@ import { useServices } from '../../services/useServices'
 import { createIdempotentOperation } from '../../lib/idempotentOperation'
 import { useAccess } from '../../app/AccessContext'
 import { useQuery } from '../../lib/useQuery'
-import { useLocalDrafts } from '../../lib/localDrafts'
+import { useWorkspaceDrafts } from '../../lib/workspaceDrafts'
 import { errorMessage } from '../../lib/errors'
 import { formatCurrency, formatDate } from '../../lib/format'
 import { documentCopy, labels } from '../../lib/domain'
@@ -79,9 +81,21 @@ export function DocumentWorkspace({ kind }: { kind: DocumentKind }) {
     items: drafts,
     save,
     error,
-  } = useLocalDrafts(draftStorageKey(kind), documentDraftSchema)
+    loading: draftsLoading,
+    retry: retryDrafts,
+  } = useWorkspaceDrafts(draftStorageKey(kind), documentDraftSchema)
   const [currency, setCurrency] = useState<Currency>('NIO')
   const [tier, setTier] = useState<PriceTier>('emprendedor')
+  const loadCustomers = useCallback(
+    () => (demo ? Promise.resolve([]) : listContacts('customers')),
+    [demo],
+  )
+  const {
+    data: customers,
+    error: customersError,
+    retry: retryCustomers,
+  } = useQuery(loadCustomers)
+  const [customerId, setCustomerId] = useState<string | null>(null)
   const [customer, setCustomer] = useState('')
   const [phone, setPhone] = useState('')
   const [taxId, setTaxId] = useState('')
@@ -116,7 +130,7 @@ export function DocumentWorkspace({ kind }: { kind: DocumentKind }) {
           kind,
           reference: current?.reference ?? `${copy.prefix}borrador`,
           customer,
-          customerId: null,
+          customerId,
           phone,
           taxId,
           currency,
@@ -165,7 +179,11 @@ export function DocumentWorkspace({ kind }: { kind: DocumentKind }) {
     setProductId('')
   }
 
-  function saveDraft() {
+  async function saveDraft() {
+    if (draftsLoading) {
+      setMessage('Espera a que carguen tus borradores.')
+      return
+    }
     const stamp = current ?? {
       id: crypto.randomUUID(),
       reference: `${copy.prefix}B${crypto.randomUUID().slice(0, 6).toUpperCase()}`,
@@ -175,7 +193,7 @@ export function DocumentWorkspace({ kind }: { kind: DocumentKind }) {
       ...stamp,
       kind,
       customer,
-      customerId: null,
+      customerId,
       phone,
       taxId,
       payment,
@@ -190,9 +208,18 @@ export function DocumentWorkspace({ kind }: { kind: DocumentKind }) {
       setMessage('Agrega productos y revisa las cantidades (1 a 9999).')
       return
     }
-    if (save([result.data, ...drafts.filter((item) => item.id !== stamp.id)])) {
+    if (
+      await save([
+        result.data,
+        ...drafts.filter((item) => item.id !== stamp.id),
+      ])
+    ) {
       setCurrent(stamp)
-      setMessage('Borrador guardado en este navegador.')
+      setMessage(
+        demo
+          ? 'Borrador guardado en este navegador.'
+          : 'Borrador guardado en tu cuenta.',
+      )
     }
   }
 
@@ -204,7 +231,9 @@ export function DocumentWorkspace({ kind }: { kind: DocumentKind }) {
     try {
       const record = await operation.execute({
         kind,
+        customerId: customerId ?? undefined,
         customerName: customer.trim(),
+        customerTaxId: taxId.trim(),
         customerPhone: whatsappNumber(phone),
         tier,
         currency,
@@ -218,7 +247,7 @@ export function DocumentWorkspace({ kind }: { kind: DocumentKind }) {
         })),
       })
       setIssued(record)
-      if (current) save(drafts.filter((item) => item.id !== current.id))
+      if (current) await save(drafts.filter((item) => item.id !== current.id))
       setCurrent({
         id: record.id,
         reference: record.number,
@@ -243,6 +272,7 @@ export function DocumentWorkspace({ kind }: { kind: DocumentKind }) {
     setIssued(null)
     setCurrency(item.currency)
     setTier(item.tier)
+    setCustomerId(item.customerId)
     setCustomer(item.customer)
     setPhone(item.phone)
     setTaxId(item.taxId)
@@ -258,6 +288,7 @@ export function DocumentWorkspace({ kind }: { kind: DocumentKind }) {
     operation.reset()
     setCurrent(null)
     setIssued(null)
+    setCustomerId(null)
     setCustomer('')
     setPhone('')
     setTaxId('')
@@ -326,6 +357,15 @@ export function DocumentWorkspace({ kind }: { kind: DocumentKind }) {
           {kind === 'invoice' ? 'Nueva factura' : 'Nueva proforma'}
         </Button>
       </div>
+      {!demo && (
+        <p className="no-print">
+          <Link
+            to={`${base}/${kind === 'invoice' ? 'sales' : 'proformas'}/history`}
+          >
+            Consultar {kind === 'invoice' ? 'facturas' : 'proformas'} emitidas
+          </Link>
+        </p>
+      )}
       <div className={`invoice-layout doc-${kind} no-print`}>
         <fieldset
           className="invoice-editor no-print"
@@ -345,11 +385,41 @@ export function DocumentWorkspace({ kind }: { kind: DocumentKind }) {
                 setTier(value)
               }}
             />
+            {!demo && (
+              <Select
+                label="Cliente registrado"
+                value={customerId ?? ''}
+                onChange={(e) => {
+                  const selected = customers?.find(
+                    (c) => c.id === e.target.value,
+                  )
+                  setCustomerId(selected?.id ?? null)
+                  setCustomer(selected?.name ?? '')
+                  setPhone(selected?.phone ?? '')
+                  setTaxId(selected?.taxId ?? '')
+                  if (selected?.priceTier)
+                    setTier(selected.priceTier as PriceTier)
+                }}
+              >
+                <option value="">Nuevo cliente</option>
+                {customers
+                  ?.filter((c) => c.active)
+                  .map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} · {c.phone}
+                    </option>
+                  ))}
+              </Select>
+            )}
+            {customersError && (
+              <ErrorState message={customersError} retry={retryCustomers} />
+            )}
             <div className="form-grid">
               <Input
                 label="Cliente"
                 maxLength={200}
                 value={customer}
+                disabled={!!customerId}
                 onChange={(e) => setCustomer(e.target.value)}
                 placeholder="Nombre del cliente"
               />
@@ -359,12 +429,13 @@ export function DocumentWorkspace({ kind }: { kind: DocumentKind }) {
                 inputMode="tel"
                 maxLength={40}
                 value={phone}
+                disabled={!!customerId}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="8888 0000"
               />
               <Input
-                label="RUC / Identificación del cliente (solo borrador)"
-                maxLength={100}
+                label="RUC / Identificación del cliente"
+                maxLength={80}
                 value={taxId}
                 onChange={(e) => setTaxId(e.target.value)}
               />
@@ -618,7 +689,7 @@ export function DocumentWorkspace({ kind }: { kind: DocumentKind }) {
             <Button
               variant="secondary"
               onClick={saveDraft}
-              disabled={!ready || busy || !!issued}
+              disabled={!ready || busy || !!issued || draftsLoading || !!error}
             >
               <Save size={17} />
               Guardar borrador
@@ -661,6 +732,11 @@ export function DocumentWorkspace({ kind }: { kind: DocumentKind }) {
             <p role="status" className="page-feedback no-print">
               {message}
             </p>
+          )}
+          {error && (
+            <Button variant="secondary" onClick={retryDrafts}>
+              Recargar borradores
+            </Button>
           )}
           {(failure || error) && (
             <p role="alert" className="inline-error no-print">

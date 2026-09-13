@@ -1,3 +1,4 @@
+import { can } from '../../lib/permissions'
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
@@ -28,7 +29,7 @@ import {
 
 export function ProductEditorPage() {
   const { role, demo } = useAccess()
-  if (role !== 'admin' && !demo)
+  if (!can(role, 'product.manage') && !demo)
     return (
       <ErrorState message="Solo los administradores pueden editar el catálogo." />
     )

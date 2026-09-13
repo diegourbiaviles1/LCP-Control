@@ -1,3 +1,4 @@
+import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, expect, it, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -10,6 +11,16 @@ import type { DocumentRecord } from '../../lib/domain'
 
 const { createDocument } = vi.hoisted(() => ({ createDocument: vi.fn() }))
 vi.mock('../../services/useServices', () => ({ useServices: () => services }))
+vi.mock('../../services/workspace', () => ({ listContacts: async () => [] }))
+vi.mock('../../lib/workspaceDrafts', () => ({
+  useWorkspaceDrafts: () => ({
+    items: [],
+    error: '',
+    loading: false,
+    save: async () => true,
+    retry: vi.fn(),
+  }),
+}))
 const services = createServices(catalogAdapter)
 services.salesService.createDocument = createDocument
 const issued: DocumentRecord = {
@@ -46,9 +57,11 @@ beforeEach(() => {
 async function prepare(demo = false) {
   const user = userEvent.setup()
   render(
-    <AccessContext.Provider value={{ demo, base: '', role: 'admin' }}>
-      <DocumentWorkspace kind="invoice" />
-    </AccessContext.Provider>,
+    <MemoryRouter>
+      <AccessContext.Provider value={{ demo, base: '', role: 'admin' }}>
+        <DocumentWorkspace kind="invoice" />
+      </AccessContext.Provider>
+    </MemoryRouter>,
   )
   await user.type(await screen.findByLabelText('Cliente'), 'Cliente de prueba')
   await user.selectOptions(

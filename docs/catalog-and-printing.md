@@ -2,12 +2,9 @@
 
 ## Activación en Supabase
 
-La actualización requiere `20260913120000_catalog_management_and_images.sql`, después de las cinco migraciones existentes. **En esta sesión no se aplicó a la base remota:** esta copia no dispone de `.env.local` ni de acceso administrativo al proyecto. Las pruebas SQL usan PostgreSQL local desechable (PGlite), con esquemas de plataforma de prueba.
+Las migraciones de catálogo y gestión completa están aplicadas en el proyecto activo `xkpujpoocsbkychstrne`. La configuración local apunta a esa base. Consulta [estado, permisos y activación](database.md).
 
-1. Aplicar la migración mediante el flujo de migraciones de Supabase o revisar/ejecutar su contenido en el SQL Editor del proyecto `LCP-Control`. No volver a ejecutar las migraciones antiguas que ya están aplicadas.
-2. Completar `.env.local` según `.env.example` con la URL y clave **publicable**. No añadir contraseñas ni claves secretas a variables `VITE_*`.
-3. Entrar con una cuenta activa de `staff_members` con rol `admin`.
-4. Abrir **Catálogo → Administrar perfumes**. Crear, editar y retirar requieren la migración. Las lecturas de inventario y escáner conservan compatibilidad con el esquema anterior.
+Con una cuenta activa de Administrador o SuperAdmin, abrir **Catálogo → Administrar perfumes**. No repetir migraciones ya aplicadas.
 
 ## Edición del catálogo
 
@@ -25,7 +22,7 @@ Las fotos viven en el bucket privado `product-images`. El personal activo puede 
 
 Las fotos existentes **no se copian por ejecutar SQL**. El importador realiza esa copia una sola vez, desde los enlaces originales. Ejecutar en una terminal interactiva:
 
-Se adelantó la descarga local de 256 imágenes distintas del catálogo de origen y se verificó que todas se pueden decodificar. Están en `private-data/image-cache/`, fuera de Git. El importador reutiliza esa copia cuando está presente; en otro equipo descarga las fotos desde los enlaces de la base. Algunos productos comparten enlace y dos referencias no traían fotografía. Esta copia local todavía no está en Storage.
+Se adelantó la descarga local de 256 imágenes distintas del catálogo de origen y se verificó que todas se pueden decodificar. Están en `private-data/image-cache/`, fuera de Git. El importador reutiliza esa copia cuando está presente; en otro equipo descarga las fotos desde los enlaces de la base. Algunos productos comparten enlace y dos referencias no traían fotografía. La carga al proyecto activo ya terminó: 256 archivos WebP (8,212,792 bytes) asociados a 258 productos; dos referencias no tenían foto. Los originales permanecen en la copia privada.
 
 ```sh
 node scripts/import_product_images.mjs
@@ -44,7 +41,7 @@ Cada persona puede editar su nombre visible y solicitar cambios de correo o cont
 
 En ambas pantallas, **Ver ejemplo en carta** abre un documento independiente con datos inventados y claramente marcado como ejemplo. No emite documentos, no registra clientes y no toca inventario. Impresión y PDF incluyen logo, color propio, datos del cliente, columnas de cantidades/precios/importes, total, observaciones y firmas. Las listas extensas continúan en páginas adicionales; el PDF repite encabezados y numera las páginas.
 
-Los campos fiscales del negocio quedan en blanco. No se inventa un RUC, autorización fiscal ni impuestos. El formato de factura es comercial provisional. Se conserva la lógica existente: facturar descuenta inventario y proformar no lo modifica. El RUC del cliente sigue perteneciendo al borrador; la emisión actual no lo persiste.
+Los campos fiscales del negocio quedan en blanco. No se inventa un RUC, autorización fiscal ni impuestos. El formato de factura es comercial provisional. Se conserva la lógica existente: facturar descuenta inventario y proformar no lo modifica. El RUC del cliente se conserva en cada documento emitido.
 
 Para regenerar los dos PDF de ejemplo con el mismo código de la aplicación:
 
@@ -64,4 +61,4 @@ npm run test:e2e
 
 Las pruebas de PostgreSQL comprueban permisos, seis precios, saldos sin contar, conflictos de edición, fotos privadas, conservación de documentos, eliminación/desactivación y actualización del perfil. PGlite no sustituye la prueba de aceptación del servicio remoto de Storage y de Supabase Auth tras aplicar la migración.
 
-El conteo inicial, la sincronización de proveedores y el hosting HTTPS siguen siendo tareas independientes. El conteo requiere cantidades físicas; no se deduce de los Excel de precios.
+Los proveedores ya se sincronizan con Supabase. El conteo inicial, SMTP para las cuentas del personal y el hosting HTTPS siguen pendientes. El conteo requiere cantidades físicas; no se deduce de los Excel de precios.

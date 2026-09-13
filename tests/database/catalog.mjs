@@ -282,6 +282,270 @@ try {
     ).rows[0]
     assert.deepEqual(row, { display_name: 'Nombre nuevo', role: 'admin' })
   })
+  await identity(admin)
+  await db.exec('reset role; alter table auth.users add column email text;')
+  await db.exec(
+    await readFile(
+      'supabase/migrations/20260914010000_complete_workspace.sql',
+      'utf8',
+    ),
+  )
+  await db.exec(
+    "insert into private.pending_staff(email,display_name,role) values('viewer@example.invalid','Viewer','viewer'),('warehouse@example.invalid','Warehouse','warehouse');",
+  )
+  const viewer = '44444444-4444-4444-8444-444444444444'
+  const warehouse = '55555555-5555-4555-8555-555555555555'
+  await check('only authorized emails can activate accounts', async () => {
+    await assert.rejects(
+      db.query(
+        "insert into auth.users(id,email) values(gen_random_uuid(),'outsider@example.invalid')",
+      ),
+      /Cuenta no autorizada/,
+    )
+    await db.query('insert into auth.users(id,email) values($1,$2),($3,$4)', [
+      viewer,
+      'viewer@example.invalid',
+      warehouse,
+      'warehouse@example.invalid',
+    ])
+  })
+  await identity(viewer)
+  await check(
+    'viewer reads stock but cannot sell or change stock',
+    async () => {
+      assert.ok((await db.query('select * from public.products')).rows.length)
+      await assert.rejects(db.query("select public.create_document('{}')"))
+      await assert.rejects(
+        db.query("select public.record_inventory_movement('{}')"),
+      )
+      await assert.rejects(db.query('select public.list_staff_accounts()'))
+      assert.equal(
+        (await db.query('select * from public.customers')).rows.length,
+        0,
+      )
+    },
+  )
+  await identity(admin)
+  await check('customer updates require matching revisions', async () => {
+    const c = {
+      id: crypto.randomUUID(),
+      revision: 0,
+      name: 'Cliente',
+      phone: '50588881111',
+      priceTier: 'vip',
+      active: true,
+    }
+    await db.query('select public.save_customer($1)', [JSON.stringify(c)])
+    await assert.rejects(
+      db.query('select public.save_customer($1)', [JSON.stringify(c)]),
+      /Otro usuario/,
+    )
+  })
+  await check('supplier persists and operator cannot write it', async () => {
+    await db.query('select public.save_supplier($1)', [
+      JSON.stringify({
+        id: crypto.randomUUID(),
+        revision: 0,
+        name: 'Proveedor',
+        active: true,
+      }),
+    ])
+    assert.equal(
+      (await db.query('select * from public.suppliers')).rows.length,
+      1,
+    )
+    await identity(operator)
+    await assert.rejects(db.query("select public.save_supplier('{}')"))
+    assert.equal(
+      (await db.query('select * from public.suppliers')).rows.length,
+      0,
+    )
+  })
+  await check(
+    'drafts are private and conflicting saves are rejected',
+    async () => {
+      await db.query(
+        "select public.save_my_drafts('lcp.drafts.invoice.v2','[]',0)",
+      )
+      await assert.rejects(
+        db.query(
+          "select public.save_my_drafts('lcp.drafts.invoice.v2','[]',0)",
+        ),
+        /otro equipo/,
+      )
+      await identity(admin)
+      assert.equal(
+        (await db.query('select * from public.user_drafts')).rows.length,
+        0,
+      )
+    },
+  )
+  await check(
+    'administrator cannot grant superadmin or disable himself',
+    async () => {
+      await assert.rejects(
+        db.query(
+          "select public.save_staff_account('person@example.invalid','Persona','superadmin',true)",
+        ),
+      )
+      await db.exec('reset role')
+      await db.query('update auth.users set email=$1 where id=$2', [
+        'admin@example.invalid',
+        admin,
+      ])
+      await identity(admin)
+      await assert.rejects(
+        db.query(
+          "select public.save_staff_account('admin@example.invalid','Admin','viewer',true)",
+        ),
+        /propios permisos/,
+      )
+    },
+  )
+  await db.exec('reset role')
+  await db.exec(
+    await readFile(
+      'supabase/migrations/20260914011000_warehouse_history.sql',
+      'utf8',
+    ),
+  )
+  await identity(warehouse)
+  await check(
+    'warehouse counts inventory and reads only its own movement history',
+    async () => {
+      const result = await db.query(
+        'select public.record_inventory_movement($1::jsonb) as id',
+        [
+          JSON.stringify({
+            requestId: crypto.randomUUID(),
+            productId: id,
+            type: 'ADJUSTMENT',
+            location: 'warehouse',
+            quantity: 7,
+            note: 'Conteo físico de prueba',
+          }),
+        ],
+      )
+      const history = await db.query(
+        'select id,after_quantity from public.inventory_movements',
+      )
+      assert.equal(history.rows.length, 1)
+      assert.equal(history.rows[0].id, result.rows[0].id)
+      assert.equal(history.rows[0].after_quantity, 7)
+      await assert.rejects(db.query("select public.create_document('{}')"))
+    },
+  )
+  await identity(admin)
+  await check(
+    'customer tax ID and original business details survive later edits',
+    async () => {
+      const customerId = crypto.randomUUID()
+      await db.query('select public.save_customer($1)', [
+        JSON.stringify({
+          id: customerId,
+          revision: 0,
+          name: 'Cliente con RUC',
+          priceTier: 'emprendedor',
+          taxId: 'RUC-DE-PRUEBA',
+          active: true,
+        }),
+      ])
+      const payload = {
+        requestId: crypto.randomUUID(),
+        kind: 'proforma',
+        customerId,
+        tier: 'emprendedor',
+        currency: 'NIO',
+        validUntil: '2099-01-01',
+        notes: 'Prueba',
+        items: [{ productId: id, quantity: 1 }],
+      }
+      const result = await db.query(
+        'select public.create_document($1::jsonb) as document',
+        [JSON.stringify(payload)],
+      )
+      const doc = result.rows[0].document
+      const stored = (
+        await db.query(
+          'select customer_tax_id,issuer from public.documents where id=$1',
+          [doc.id],
+        )
+      ).rows[0]
+      assert.equal(stored.customer_tax_id, 'RUC-DE-PRUEBA')
+      await db.query(
+        "select public.save_business_settings('Nombre actualizado','','')",
+      )
+      assert.deepEqual(
+        (
+          await db.query('select issuer from public.documents where id=$1', [
+            doc.id,
+          ])
+        ).rows[0].issuer,
+        stored.issuer,
+      )
+    },
+  )
+  await db.exec('reset role')
+  await db.exec(
+    await readFile(
+      'supabase/migrations/20260914012000_document_customer_details.sql',
+      'utf8',
+    ),
+  )
+  await identity(admin)
+  await check(
+    'document-created customers retain tax ID and tier edits invalidate stale revisions',
+    async () => {
+      const payload = {
+        requestId: crypto.randomUUID(),
+        kind: 'proforma',
+        customerName: 'Nuevo desde proforma',
+        customerTaxId: 'RUC-NUEVO',
+        tier: 'emprendedor',
+        currency: 'USD',
+        validUntil: '2099-01-01',
+        notes: 'Prueba',
+        items: [{ productId: id, quantity: 1 }],
+      }
+      await db.query('select public.create_document($1::jsonb)', [
+        JSON.stringify(payload),
+      ])
+      const customer = (
+        await db.query(
+          "select * from public.customers where name='Nuevo desde proforma'",
+        )
+      ).rows[0]
+      assert.equal(customer.tax_id, 'RUC-NUEVO')
+      await db.query('select public.create_document($1::jsonb)', [
+        JSON.stringify({
+          ...payload,
+          requestId: crypto.randomUUID(),
+          customerId: customer.id,
+          tier: 'vip',
+        }),
+      ])
+      assert.equal(
+        (
+          await db.query('select revision from public.customers where id=$1', [
+            customer.id,
+          ])
+        ).rows[0].revision,
+        2,
+      )
+      await assert.rejects(
+        db.query('select public.save_customer($1)', [
+          JSON.stringify({
+            id: customer.id,
+            revision: 1,
+            name: customer.name,
+            active: true,
+            priceTier: 'emprendedor',
+          }),
+        ]),
+        /Otro usuario/,
+      )
+    },
+  )
   console.log(
     `${checks} PostgreSQL checks passed. No deployed database was accessed.`,
   )

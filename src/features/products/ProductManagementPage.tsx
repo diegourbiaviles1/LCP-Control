@@ -1,3 +1,4 @@
+import { can } from '../../lib/permissions'
 import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAccess } from '../../app/AccessContext'
@@ -13,7 +14,7 @@ import { useServices } from '../../services/useServices'
 import { useQuery } from '../../lib/useQuery'
 export function ProductManagementPage() {
   const { role, demo } = useAccess()
-  if (role !== 'admin' && !demo)
+  if (!can(role, 'product.manage') && !demo)
     return (
       <ErrorState message="Solo los administradores pueden editar el catálogo." />
     )

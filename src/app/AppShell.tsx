@@ -19,6 +19,7 @@ import { AccessContext } from './AccessContext'
 import { Button } from '../components/ui'
 import { Brand } from '../components/Brand'
 import { errorMessage } from '../lib/errors'
+import { can, roleLabels, type Capability } from '../lib/permissions'
 const links = [
   ['', 'Inicio', LayoutDashboard],
   ['/inventory', 'Inventario', Package],
@@ -29,6 +30,10 @@ const links = [
   ['/alerts', 'Alertas', Bell],
   ['/suppliers', 'Proveedores', Truck],
   ['/account', 'Mi cuenta', UserRound],
+  ['/customers', 'Clientes', UserRound],
+  ['/inventory/history', 'Movimientos', Layers3],
+  ['/staff', 'Usuarios', UserRound],
+  ['/settings', 'Negocio', Layers3],
 ] as const
 export function AppShell({ demo = false }: { demo?: boolean }) {
   const { user, service } = useAuth()
@@ -88,18 +93,30 @@ export function AppShell({ demo = false }: { demo?: boolean }) {
           </Button>
           <span className="nav-label">MI TIENDA</span>
           <nav aria-label="Navegación principal">
-            {links.map(([path, label, Icon]) => (
-              <NavLink
-                key={path}
-                end
-                to={base + path || '/'}
-                onClick={() => setMenu(false)}
-              >
-                <Icon size={19} />
-                {label}
-                {path === '/scanner' && <span className="nav-key">QR</span>}
-              </NavLink>
-            ))}
+            {links
+              .filter(([path]) => {
+                const permission: Record<string, Capability> = {
+                  '/sales': 'sale.create',
+                  '/proformas': 'sale.create',
+                  '/customers': 'customer.read',
+                  '/suppliers': 'supplier.read',
+                  '/staff': 'staff.manage',
+                  '/settings': 'settings.manage',
+                }
+                return demo || !permission[path] || can(role, permission[path])
+              })
+              .map(([path, label, Icon]) => (
+                <NavLink
+                  key={path}
+                  end
+                  to={base + path || '/'}
+                  onClick={() => setMenu(false)}
+                >
+                  <Icon size={19} />
+                  {label}
+                  {path === '/scanner' && <span className="nav-key">QR</span>}
+                </NavLink>
+              ))}
           </nav>
           <div className="sidebar-bottom">
             <div className="user-block">
@@ -111,9 +128,9 @@ export function AppShell({ demo = false }: { demo?: boolean }) {
                 <small>
                   {demo
                     ? 'Sin conexión a base de datos'
-                    : role === 'admin'
-                      ? 'Administrador'
-                      : 'Operador'}
+                    : role
+                      ? roleLabels[role]
+                      : 'Sin acceso'}
                 </small>
               </div>
             </div>
@@ -159,12 +176,14 @@ export function AppShell({ demo = false }: { demo?: boolean }) {
               </span>
             </div>
           </header>
-          <div className="demo-banner">
-            <span>
-              Vista local · Los borradores se guardan únicamente en este
-              navegador.
-            </span>
-          </div>
+          {demo && (
+            <div className="demo-banner">
+              <span>
+                Vista local · Los borradores se guardan únicamente en este
+                navegador.
+              </span>
+            </div>
+          )}
           {!online && (
             <div role="alert" className="offline-banner">
               Sin conexión. Las fotos externas pueden no estar disponibles.

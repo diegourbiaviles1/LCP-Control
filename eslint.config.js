@@ -9,6 +9,8 @@ export default tseslint.config(
       'dist',
       'node_modules',
       '.tools',
+      'private-data',
+      'output',
       'playwright-report',
       'test-results',
     ],

@@ -3,6 +3,8 @@ import { z } from 'zod'
 import { Plus, Pencil, Truck } from 'lucide-react'
 import { Button, Card, Input, EmptyState } from '../../components/ui'
 import { useLocalDrafts } from '../../lib/localDrafts'
+import { useAccess } from '../../app/AccessContext'
+import { ContactsPage } from '../ContactsPage'
 const supplierSchema = z.object({
   id: z.string(),
   name: z.string().trim().min(1).max(160),
@@ -29,6 +31,13 @@ const blank = {
   notes: '',
 }
 export function SuppliersPage() {
+  return useAccess().demo ? (
+    <LocalSuppliersPage />
+  ) : (
+    <ContactsPage kind="suppliers" />
+  )
+}
+function LocalSuppliersPage() {
   const { items, save, error } = useLocalDrafts(
     'lcp.suppliers.v1',
     supplierSchema,

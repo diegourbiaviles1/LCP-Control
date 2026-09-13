@@ -10,14 +10,34 @@ export type Capability =
   | 'inventory.create_damage'
   | 'inventory.adjust'
   | 'finance.read'
+  | 'customer.read'
+  | 'customer.manage'
+  | 'supplier.read'
+  | 'supplier.manage'
+  | 'staff.manage'
+  | 'settings.manage'
 const common: Capability[] = [
   'inventory.read',
   'scanner.use',
   'sale.create',
   'inventory.create_exit',
   'inventory.create_damage',
+  'customer.read',
+  'customer.manage',
 ]
 const permissions: Record<UserRole, readonly Capability[]> = {
+  superadmin: [
+    ...common,
+    'product.manage',
+    'product.edit_cost',
+    'inventory.create_entry',
+    'inventory.adjust',
+    'finance.read',
+    'supplier.read',
+    'supplier.manage',
+    'staff.manage',
+    'settings.manage',
+  ],
   admin: [
     ...common,
     'product.manage',
@@ -25,8 +45,22 @@ const permissions: Record<UserRole, readonly Capability[]> = {
     'inventory.create_entry',
     'inventory.adjust',
     'finance.read',
+    'supplier.read',
+    'supplier.manage',
+    'staff.manage',
+    'settings.manage',
   ],
   operator: common,
+  warehouse: [
+    'inventory.read',
+    'scanner.use',
+    'inventory.create_entry',
+    'inventory.create_exit',
+    'inventory.create_damage',
+    'inventory.adjust',
+    'supplier.read',
+  ],
+  viewer: ['inventory.read', 'scanner.use'],
 }
 export function can(
   role: UserRole | null | undefined,
@@ -36,5 +70,14 @@ export function can(
 }
 // Missing / invalid roles fail closed. Never authorize from user_metadata.
 export function parseRole(value: unknown): UserRole | null {
-  return value === 'admin' || value === 'operator' ? value : null
+  return typeof value === 'string' && Object.hasOwn(permissions, value)
+    ? (value as UserRole)
+    : null
+}
+export const roleLabels: Record<UserRole, string> = {
+  superadmin: 'SuperAdmin',
+  admin: 'Administrador',
+  operator: 'Ventas',
+  warehouse: 'Inventario',
+  viewer: 'Solo consulta',
 }
