@@ -28,6 +28,13 @@ function client() {
     )
   return supabase
 }
+async function authorizedProfile(session: Session | null): Promise<UserProfile | null> {
+  const profile = profileFromSession(session)
+  if (!profile) return null
+  const { data, error } = await client().from('staff_members').select('role,active').eq('user_id',profile.id).maybeSingle()
+  if (error) throw new AppError('network','No pudimos verificar los permisos de tu cuenta.')
+  return { ...profile, role: data?.active ? parseRole(data.role) : null }
+}
 export const authService: AuthService = {
   async getSession() {
     if (!supabase) return null
@@ -37,7 +44,7 @@ export const authService: AuthService = {
         'network',
         'No pudimos restaurar tu sesión. Vuelve a intentarlo.',
       )
-    return profileFromSession(data.session)
+    return authorizedProfile(data.session)
   },
   async signIn(email, password) {
     const { error } = await client().auth.signInWithPassword({
@@ -62,9 +69,19 @@ export const authService: AuthService = {
   },
   subscribe(callback) {
     if (!supabase) return () => {}
-    const { data } = supabase.auth.onAuthStateChange((_event, session) =>
-      callback(profileFromSession(session)),
-    )
-    return () => data.subscription.unsubscribe()
+    let active = true
+    let revision = 0
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      const current = ++revision
+      // Avoid awaiting a Supabase request inside its auth event lock.
+      setTimeout(() => {
+        void authorizedProfile(session).then(profile => {
+          if (active && current === revision) callback(profile)
+        }).catch(() => {
+          if (active && current === revision) callback(session ? { id:session.user.id,email:session.user.email ?? '',role:null } : null)
+        })
+      },0)
+    })
+    return () => { active=false; data.subscription.unsubscribe() }
   },
 }

@@ -11,7 +11,7 @@ import {
   LoadingState,
   Select,
 } from '../../components/ui'
-import { inventoryService } from '../../services'
+import { useServices } from '../../services/useServices'
 import { useQuery } from '../../lib/useQuery'
 import { labels } from '../../lib/domain'
 import type { Category, Gender, InventoryLocation } from '../../lib/domain'
@@ -26,6 +26,7 @@ import {
 import { ProductCard, ProductIdentity, StockBadge } from './ProductCard'
 import { useAccess } from '../../app/AccessContext'
 export function InventoryPage({ catalog = false }: { catalog?: boolean }) {
+  const { inventoryService } = useServices()
   const { data, loading, error, retry } = useQuery(
     inventoryService.getInventory,
   )
@@ -190,10 +191,10 @@ export function InventoryPage({ catalog = false }: { catalog?: boolean }) {
                           {labels.gender[item.product.gender]}
                         </small>
                       </td>
-                      <td>{item.quantities.warehouse}</td>
-                      <td>{item.quantities.store}</td>
+                      <td>{item.quantities.warehouse ?? 'Sin conteo'}</td>
+                      <td>{item.quantities.store ?? 'Sin conteo'}</td>
                       <td>
-                        <strong>{totalStock(item)}</strong>
+                        <strong>{totalStock(item) ?? '—'}</strong>
                       </td>
                       <td className="price-cell">
                         {formatCurrency(

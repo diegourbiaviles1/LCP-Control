@@ -4,7 +4,8 @@ import {
   LayoutDashboard,
   Package,
   ScanLine,
-  ShoppingBag,
+  ReceiptText,
+  FileText,
   Layers3,
   Bell,
   LogOut,
@@ -20,7 +21,8 @@ const links = [
   ['', 'Resumen', LayoutDashboard],
   ['/inventory', 'Inventario', Package],
   ['/scanner', 'Escanear', ScanLine],
-  ['/sales', 'Ventas', ShoppingBag],
+  ['/invoices', 'Facturación', ReceiptText],
+  ['/proformas', 'Proformas', FileText],
   ['/products', 'Productos', Layers3],
   ['/alerts', 'Alertas', Bell],
 ] as const
@@ -106,7 +108,7 @@ export function AppShell({ demo = false }: { demo?: boolean }) {
                 <strong>{demo ? 'Vista de demostración' : user?.email}</strong>
                 <small>
                   {demo
-                    ? 'Solo lectura'
+                    ? 'Simulación local'
                     : role === 'admin'
                       ? 'Administrador'
                       : 'Operador'}
@@ -146,7 +148,7 @@ export function AppShell({ demo = false }: { demo?: boolean }) {
               <span className="muted">Panel de control</span>
             </div>
             <div className="topbar-actions">
-              <Badge>Foundation · 01</Badge>
+              <Badge>{demo ? 'Demostración' : 'Mi tienda'}</Badge>
               <Link aria-label="Ver alertas" to={`${base}/alerts`}>
                 <Bell size={20} />
               </Link>
@@ -157,8 +159,7 @@ export function AppShell({ demo = false }: { demo?: boolean }) {
           </header>
           <div className="demo-banner">
             <span>
-              <span className="status-dot" /> Datos de demostración · Solo
-              lectura
+              <span className="status-dot" /> {demo ? 'Datos de demostración · Simulación local' : 'Datos de la tienda · Supabase'}
             </span>
             <Link to="/login">
               {demo ? 'Conectar mi tienda' : 'Autenticación activa'}
@@ -167,8 +168,7 @@ export function AppShell({ demo = false }: { demo?: boolean }) {
           </div>
           {!online && (
             <div role="alert" className="offline-banner">
-              Sin conexión. Los datos mostrados son de demostración; no se
-              enviarán operaciones.
+              Sin conexión. Revisa tu conexión antes de guardar documentos.
             </div>
           )}
           <main id="main" className="main-content">

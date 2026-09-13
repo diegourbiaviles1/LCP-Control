@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { useCallback } from 'react'
 import {
   ArrowRight,
   ArrowUpRight,
@@ -11,23 +12,24 @@ import {
   Store,
 } from 'lucide-react'
 import { Card, EmptyState, ErrorState, LoadingState } from '../../components/ui'
-import { inventoryService, salesService } from '../../services'
+import { useServices } from '../../services/useServices'
 import { useQuery } from '../../lib/useQuery'
 import { formatCurrency, formatDate } from '../../lib/format'
 import { totalStock } from '../inventory/model'
 import { ProductIdentity, StockBadge } from '../inventory/ProductCard'
 import { useAccess } from '../../app/AccessContext'
 import { can } from '../../lib/permissions'
-async function loadDashboard() {
+export function DashboardPage() {
+  const { inventoryService, salesService } = useServices()
+  const loadDashboard = useCallback(async () => {
   const [items, sales] = await Promise.all([
     inventoryService.getInventory(),
     salesService.getTodaySummary(),
   ])
   return { items, sales }
-}
-export function DashboardPage() {
+  }, [inventoryService, salesService])
   const { data, loading, error, retry } = useQuery(loadDashboard)
-  const { base, role } = useAccess()
+  const { base, role, demo } = useAccess()
   if (loading) return <LoadingState />
   if (error || !data)
     return (
@@ -37,13 +39,14 @@ export function DashboardPage() {
       />
     )
   const low = data.items.filter(
-    (item) => totalStock(item) < item.product.minimumStock,
+    (item) => totalStock(item) !== null && totalStock(item)! < item.product.minimumStock,
   )
   const warehouse = data.items.reduce(
-    (sum, item) => sum + item.quantities.warehouse,
+    (sum, item) => sum + (item.quantities.warehouse ?? 0),
     0,
   )
-  const store = data.items.reduce((sum, item) => sum + item.quantities.store, 0)
+  const store = data.items.reduce((sum, item) => sum + (item.quantities.store ?? 0), 0)
+  const pending = data.items.filter(item => totalStock(item) === null).length
   const stats = [
     {
       title: 'Productos en catálogo',
@@ -53,8 +56,8 @@ export function DashboardPage() {
     },
     {
       title: 'Unidades disponibles',
-      value: warehouse + store,
-      detail: 'En bodega y tienda',
+      value: pending ? 'Pendiente' : warehouse + store,
+      detail: pending ? `${pending} productos pendientes de conteo` : 'En bodega y tienda',
       icon: Box,
     },
     {
@@ -67,7 +70,7 @@ export function DashboardPage() {
     {
       title: 'Ventas del día',
       value: data.sales.count,
-      detail: 'Registros de demostración',
+      detail: demo ? 'Registros de demostración' : 'Facturas emitidas hoy',
       icon: ShoppingBag,
     },
   ]
@@ -130,10 +133,10 @@ export function DashboardPage() {
             Un espacio simple para el próximo
             <br className="desktop-break" /> paso de tu operación.
           </p>
-          <Link className="text-link" to={`${base}/sales`}>
-            Nueva venta <ArrowUpRight size={17} />
+          <Link className="text-link" to={`${base}/invoices`}>
+            Nueva factura <ArrowUpRight size={17} />
           </Link>
-          <small>Disponible en el siguiente incremento</small>
+          <small>Facturas y proformas en secciones separadas</small>
         </Card>
       </div>
       <div className="dashboard-lower">
@@ -181,7 +184,7 @@ export function DashboardPage() {
               <small>Almacenamiento</small>
             </div>
             <b>
-              {warehouse}
+              {pending ? '—' : warehouse}
               <small>unidades</small>
             </b>
           </div>
@@ -201,7 +204,7 @@ export function DashboardPage() {
               <small>Punto de venta</small>
             </div>
             <b>
-              {store}
+              {pending ? '—' : store}
               <small>unidades</small>
             </b>
           </div>
@@ -219,7 +222,7 @@ export function DashboardPage() {
       </div>
       {can(role, 'finance.read') && (
         <div className="page-feedback">
-          Ventas de demostración: {formatCurrency(data.sales.totals.NIO, 'NIO')}{' '}
+          {demo ? 'Ventas de demostración' : 'Ventas del día'}: {formatCurrency(data.sales.totals.NIO, 'NIO')}{' '}
           · {formatCurrency(data.sales.totals.USD, 'USD')}. Los totales se
           mantienen separados por moneda.
         </div>

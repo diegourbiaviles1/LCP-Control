@@ -9,9 +9,12 @@ import {
 } from '../../components/ui'
 import { createHtml5Adapter } from './html5Adapter'
 import { ScannerSession, type ScanState } from './ScannerSession'
-import { productService } from '../../services'
+import { useServices } from '../../services/useServices'
+import { useAccess } from '../../app/AccessContext'
 import { ScannerResult, UnknownProduct } from './ScannerResult'
 export function ScannerPage() {
+  const { productService } = useServices()
+  const { demo } = useAccess()
   const id = useId().replaceAll(':', '')
   const elementId = `camera-${id}`
   const controller = useRef<ScannerSession | null>(null)
@@ -31,7 +34,7 @@ export function ScannerPage() {
       void session.cancel()
       controller.current = null
     }
-  }, [elementId])
+  }, [elementId, productService])
   async function cancel() {
     await controller.current?.cancel()
     setState({ status: 'idle' })
@@ -135,7 +138,7 @@ export function ScannerPage() {
               </Button>
             </form>
             <p>
-              Demo: prueba <code>LCP-0001</code> o un código desconocido.
+              {demo ? 'Demo: prueba LCP-0001 o un código desconocido.' : 'También puedes buscar por el código interno LCP del catálogo.'}
             </p>
           </div>
         </Card>

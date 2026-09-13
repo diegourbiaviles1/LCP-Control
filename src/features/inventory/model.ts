@@ -20,11 +20,12 @@ export const emptyFilters: InventoryFilters = {
   stock: '',
 }
 export function totalStock(item: InventoryItem) {
+  if (item.quantities.store === null || item.quantities.warehouse === null) return null
   return item.quantities.store + item.quantities.warehouse
 }
 export function stockStatus(item: InventoryItem) {
   const total = totalStock(item)
-  return total === 0
+  return total === null ? 'unknown' : total === 0
     ? 'out'
     : total < item.product.minimumStock
       ? 'low'
@@ -47,8 +48,8 @@ export function filterInventory(
       (!filters.category || product.category === filters.category) &&
       (!filters.gender || product.gender === filters.gender) &&
       (filters.stock !== 'out' || quantity === 0) &&
-      (filters.stock !== 'low' || quantity < product.minimumStock) &&
-      (filters.stock !== 'available' || quantity > 0)
+      (filters.stock !== 'low' || (quantity !== null && quantity < product.minimumStock)) &&
+      (filters.stock !== 'available' || (quantity !== null && quantity > 0))
     )
   })
 }

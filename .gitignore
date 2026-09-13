@@ -1,4 +1,7 @@
 node_modules/
+output/
+Archivos de excel LCP/
+__pycache__/
 dist/
 .env
 .env.*

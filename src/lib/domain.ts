@@ -6,8 +6,8 @@ export interface UserProfile {
 }
 export type Currency = 'NIO' | 'USD'
 export type InventoryLocation = 'warehouse' | 'store'
-export type Category = 'arabian' | 'designer'
-export type Gender = 'male' | 'female' | 'unisex'
+export type Category = 'arabian' | 'designer' | 'unspecified'
+export type Gender = 'male' | 'female' | 'unisex' | 'unspecified'
 export type PaymentMethod = 'cash' | 'card_pos' | 'bank_transfer'
 export type Bank = 'BAC' | 'LAFISE' | 'FICOSA'
 export interface Product {
@@ -17,8 +17,10 @@ export interface Product {
   brand: string
   category: Category
   gender: Gender
-  size: number
-  unit: 'ml'
+  size: number | null
+  unit: 'ml' | 'oz'
+  sku?: string
+  prices?: ProductPrice[]
   price: number
   currency: Currency
   minimumStock: number
@@ -32,7 +34,7 @@ export interface ProductCost {
 }
 export interface InventoryItem {
   product: Product
-  quantities: Record<InventoryLocation, number>
+  quantities: Record<InventoryLocation, number | null>
 }
 export type MovementType =
   'ENTRY' | 'EXIT' | 'DAMAGED' | 'ADJUSTMENT' | 'TRANSFER' | 'SALE'
@@ -61,14 +63,60 @@ export interface Sale {
 export interface Customer {
   id: string
   name: string
+  phone: string | null
+  priceTier: PriceTier
 }
 export interface Supplier {
   id: string
   name: string
 }
+export type PriceTier = 'emprendedor' | 'vip' | 'premium'
+export type DocumentKind = 'invoice' | 'proforma'
+export interface ProductPrice { tier: PriceTier; currency: Currency; amount: number }
+export interface DocumentInput {
+  requestId: string
+  kind: DocumentKind
+  customerId: string | null
+  customerName: string
+  customerPhone: string
+  currency: Currency
+  tier: PriceTier
+  location: InventoryLocation | null
+  validUntil: string | null
+  paymentMethod: PaymentMethod | 'pending' | null
+  notes: string
+  items: { productId: string; quantity: number }[]
+}
+export interface BusinessDocument {
+  id: string
+  kind: DocumentKind
+  number: string
+  customerId: string
+  customerName: string
+  customerPhone: string | null
+  issuer: { name: string; address: string; phone: string }
+  currency: Currency
+  tier: PriceTier
+  total: number
+  createdAt: string
+  validUntil: string | null
+  paymentMethod: PaymentMethod | 'pending' | null
+  notes: string
+  demo: boolean
+  items: { productId: string; description: string; quantity: number; unitPrice: number; lineTotal: number }[]
+}
+export interface MovementInput {
+  requestId: string
+  productId: string
+  location: InventoryLocation
+  type: 'ENTRY' | 'EXIT' | 'DAMAGED' | 'ADJUSTMENT'
+  quantity: number
+  reference: string | null
+  note: string
+}
 export const labels = {
-  category: { arabian: 'Árabe', designer: 'Diseñador' },
-  gender: { male: 'Masculino', female: 'Femenino', unisex: 'Unisex' },
+  category: { arabian: 'Árabe', designer: 'Diseñador', unspecified: 'Por clasificar' },
+  gender: { male: 'Masculino', female: 'Femenino', unisex: 'Unisex', unspecified: 'Por clasificar' },
   location: { warehouse: 'Bodega', store: 'Tienda' },
   payment: {
     cash: 'Efectivo',

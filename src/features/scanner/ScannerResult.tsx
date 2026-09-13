@@ -1,234 +1,68 @@
-import { useState } from 'react'
-import {
-  ArrowDownLeft,
-  ArrowUpRight,
-  SlidersHorizontal,
-  TriangleAlert,
-  Check,
-} from 'lucide-react'
+import { useRef, useState, type FormEvent } from 'react'
+import { ArrowDownLeft, ArrowUpRight, SlidersHorizontal, TriangleAlert, Check } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import {
-  Badge,
-  Button,
-  Card,
-  Dialog,
-  ErrorState,
-  LoadingState,
-} from '../../components/ui'
-import type { Product, InventoryMovement } from '../../lib/domain'
+import { Badge, Button, Card, Dialog, ErrorState, LoadingState, Input, Select } from '../../components/ui'
+import type { Product, MovementInput } from '../../lib/domain'
 import { labels } from '../../lib/domain'
 import { can, type Capability } from '../../lib/permissions'
 import { formatCurrency } from '../../lib/format'
+import { errorMessage } from '../../lib/errors'
 import { useAccess } from '../../app/AccessContext'
-import { inventoryService } from '../../services'
+import { useServices } from '../../services/useServices'
 import { useQuery } from '../../lib/useQuery'
 import { ProductCard } from '../inventory/ProductCard'
-import { toast } from 'sonner'
-
-const actions: {
-  title: string
-  capability: Capability
-  icon: typeof ArrowDownLeft
-  type: InventoryMovement['type']
-}[] = [
-  {
-    title: 'Entrada',
-    capability: 'inventory.create_entry',
-    icon: ArrowDownLeft,
-    type: 'ENTRY'
-  },
-  { 
-    title: 'Salida', 
-    capability: 'inventory.create_exit', 
-    icon: ArrowUpRight, 
-    type: 'EXIT' 
-  },
-  {
-    title: 'Dañado',
-    capability: 'inventory.create_damage',
-    icon: TriangleAlert,
-    type: 'DAMAGED'
-  },
-  { 
-    title: 'Ajuste', 
-    capability: 'inventory.adjust', 
-    icon: SlidersHorizontal, 
-    type: 'ADJUSTMENT' 
-  },
+const actions: {title:string;capability:Capability;icon:typeof Check;type:MovementInput['type']}[]=[
+ {title:'Entrada',capability:'inventory.create_entry',icon:ArrowDownLeft,type:'ENTRY'},
+ {title:'Salida',capability:'inventory.create_exit',icon:ArrowUpRight,type:'EXIT'},
+ {title:'Dañado',capability:'inventory.create_damage',icon:TriangleAlert,type:'DAMAGED'},
+ {title:'Ajuste',capability:'inventory.adjust',icon:SlidersHorizontal,type:'ADJUSTMENT'},
 ]
-
-export function ScannerResult({ product }: { product: Product }) {
-  const { role } = useAccess()
-  const { data, loading, error, retry } = useQuery(
-    inventoryService.getInventory,
-  )
-  const [action, setAction] = useState<string | null>(null)
-  const [quantity, setQuantity] = useState<number>(1)
-  const [reference, setReference] = useState<string>('')
-  const [note, setNote] = useState<string>('')
-  const item = data?.find((item) => item.product.id === product.id)
-  
-  const handleActionClick = (actionTitle: string) => {
-    setAction(actionTitle)
-    // Reset form fields when opening new action
-    setQuantity(1)
-    setReference('')
-    setNote('')
-  }
-
-  const handleSubmitMovement = async () => {
-    if (!action) return
-    
-    try {
-      const selectedAction = actions.find(a => a.title === action)
-      
-      if (!selectedAction) {
-        toast.error('Error al procesar la acción')
-        return
-      }
-      
-      // Create inventory movement object
-      const movement: Omit<InventoryMovement, 'id' | 'createdAt'> = {
-        productId: product.id,
-        type: selectedAction.type,
-        quantity,
-        reference: reference || undefined,
-        note: note || undefined,
-        location: 'store', // Default to store for now - can be extended based on requirements
-      }
-      
-      // Call the service to create inventory movement
-      await inventoryService.createInventoryMovement(movement)
-      
-      toast.success(`${action} registrada exitosamente`)
-      setAction(null)
-    } catch (error) {
-      console.error('Error creating inventory movement:', error)
-      toast.error('Error al registrar la acción en el inventario')
-      setAction(null)
-    }
-  }
-
-  return (
-    <Card className="scan-result">
-      <Badge tone="success">
-        <Check size={13} /> Producto encontrado
-      </Badge>
-      <h2>{product.name}</h2>
-      <p className="muted">
-        {product.brand} · {product.size} {product.unit} ·{' '}
-        {labels.category[product.category]}
-      </p>
-      <code>{product.barcode}</code>
-      <strong className="scan-price">
-        {formatCurrency(product.price, product.currency)}
-      </strong>
-      {loading ? (
-        <LoadingState />
-      ) : error ? (
-        <ErrorState message={error} retry={retry} />
-      ) : item ? (
-        <ProductCard item={item} />
-      ) : (
-        <p>No se encontraron existencias para este producto.</p>
-      )}
-      <h3>Continuar con una acción</h3>
-      <p className="muted">
-        Realiza una operación sobre el inventario
-      </p>
-      <div className="scan-actions">
-        {actions
-          .filter((action) => can(role, action.capability))
-          .map(({ title, icon: Icon, type }) => (
-            <Button
-              key={title}
-              variant="secondary"
-              onClick={() => handleActionClick(title)}
-            >
-              <Icon size={19} />
-              {title}
-            </Button>
-          ))}
-      </div>
-      {role === 'operator' && (
-        <small>
-          Entradas y ajustes requieren autorización administrativa; política
-          pendiente de definición.
-        </small>
-      )}
-      
-      {/* Action Dialog */}
-      <Dialog
-        open={!!action}
-        title={`${action} de inventario`}
-        onClose={() => setAction(null)}
-      >
-        {action && (
-          <>
-            <p>
-              <strong>{product.name}</strong> · {product.barcode}
-            </p>
-            
-            {/* Quantity Input */}
-            <div className="mb-4">
-              <label htmlFor="quantity" className="block text-sm font-medium mb-1">
-                Cantidad
-              </label>
-              <input
-                type="number"
-                id="quantity"
-                min="1"
-                value={quantity}
-                onChange={(e) => setQuantity(Number(e.target.value))}
-                className="w-full p-2 border rounded"
-              />
-            </div>
-            
-            {/* Reference Input */}
-            <div className="mb-4">
-              <label htmlFor="reference" className="block text-sm font-medium mb-1">
-                Referencia (opcional)
-              </label>
-              <input
-                type="text"
-                id="reference"
-                value={reference}
-                onChange={(e) => setReference(e.target.value)}
-                className="w-full p-2 border rounded"
-                placeholder="Número de factura, orden de compra, etc."
-              />
-            </div>
-            
-            {/* Note Input */}
-            <div className="mb-4">
-              <label htmlFor="note" className="block text-sm font-medium mb-1">
-                Nota (opcional)
-              </label>
-              <textarea
-                id="note"
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                className="w-full p-2 border rounded"
-                placeholder="Observaciones adicionales"
-                rows={3}
-              />
-            </div>
-            
-            <div className="flex gap-2 justify-end">
-              <Button variant="secondary" onClick={() => setAction(null)}>
-                Cancelar
-              </Button>
-              <Button onClick={handleSubmitMovement}>
-                Confirmar {action}
-              </Button>
-            </div>
-          </>
-        )}
-      </Dialog>
-    </Card>
-  )
+export function ScannerResult({product}:{product:Product}) {
+ const {role,demo}=useAccess()
+ const {inventoryService}=useServices()
+ const query=useQuery(inventoryService.getInventory)
+ const [action,setAction]=useState<(typeof actions)[number] | null>(null)
+ const [quantity,setQuantity]=useState(1)
+ const [location,setLocation]=useState<MovementInput['location']>('store')
+ const [note,setNote]=useState('')
+ const [reference,setReference]=useState('')
+ const [error,setError]=useState('')
+ const [success,setSuccess]=useState('')
+ const [busy,setBusy]=useState(false)
+ const request=useRef(crypto.randomUUID())
+ const submitting=useRef(false)
+ const item=query.data?.find(i=>i.product.id===product.id)
+ async function submit(e:FormEvent) {
+  e.preventDefault()
+  if(!action || submitting.current || demo) return
+  submitting.current=true;setBusy(true);setError('')
+  try {
+   await inventoryService.createInventoryMovement({requestId:request.current,productId:product.id,location,type:action.type,quantity,reference:reference||null,note})
+   setSuccess(action.title+' registrada.');setAction(null);query.retry()
+  } catch(err) {setError(errorMessage(err))}
+  finally {setBusy(false);submitting.current=false}
+ }
+ return <Card className="scan-result">
+  <Badge tone="success"><Check size={13}/>Producto encontrado</Badge><h2>{product.name}</h2>
+  <p className="muted">{product.brand} · {product.size===null ? 'Tamaño por confirmar' : product.size+' '+product.unit} · {labels.category[product.category]}</p>
+  <code>{product.barcode}</code><strong className="scan-price">{formatCurrency(product.price,product.currency)}</strong>
+  {query.loading ? <LoadingState/> : query.error ? <ErrorState message={query.error} retry={query.retry}/> : item ? <ProductCard item={item}/> : <p>Sin información de existencias.</p>}
+  <h3>Continuar con una acción</h3><div className="scan-actions">{actions.filter(a=>can(role,a.capability)).map(a=><Button key={a.type} variant="secondary" onClick={()=>{setAction(a);setQuantity(a.type==='ADJUSTMENT'?0:1);setNote('');setReference('');setError('');setSuccess('');request.current=crypto.randomUUID()}}><a.icon size={19}/>{a.title}</Button>)}</div>
+  {success && <p role="status">{success}</p>}
+  <Dialog open={!!action} title={(action?.title ?? '')+' de inventario'} onClose={()=>{if(!busy)setAction(null)}}>
+   {demo ? <><p>Los movimientos reales requieren una cuenta de la tienda. Esta vista permite consultar los datos de ejemplo.</p><Button onClick={()=>setAction(null)}>Entendido</Button></> : <form onSubmit={submit} className="movement-form">
+    <p>{product.name}</p>
+    {action?.type==='ADJUSTMENT' && <p>Ingresa la cantidad total contada en la ubicación. Este ajuste permite registrar el conteo inicial.</p>}
+    <Select label="Ubicación" value={location} onChange={e=>setLocation(e.target.value as typeof location)} disabled={busy}><option value="store">Tienda</option><option value="warehouse">Bodega</option></Select>
+    <Input label={action?.type==='ADJUSTMENT'?'Cantidad contada':'Cantidad'} type="number" min={action?.type==='ADJUSTMENT'?0:1} max={1000000} step={1} required value={quantity} onChange={e=>setQuantity(Number(e.target.value))} disabled={busy}/>
+    <Input label="Motivo" value={note} onChange={e=>setNote(e.target.value)} required maxLength={2000} disabled={busy}/>
+    <Input label="Referencia (opcional)" value={reference} onChange={e=>setReference(e.target.value)} maxLength={160} disabled={busy}/>
+    {error && <p role="alert" className="inline-error">{error}</p>}
+    <Button type="submit" disabled={busy}>{busy?'Guardando…':'Confirmar '+action?.title}</Button>
+   </form>}
+  </Dialog>
+ </Card>
 }
-
 export function UnknownProduct({ code }: { code: string }) {
   const { role, base } = useAccess()
   return (

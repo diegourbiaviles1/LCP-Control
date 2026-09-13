@@ -9,10 +9,10 @@ export function StockBadge({ item }: { item: InventoryItem }) {
   return (
     <Badge
       tone={
-        status === 'out' ? 'danger' : status === 'low' ? 'warning' : 'success'
+        status === 'unknown' ? 'neutral' : status === 'out' ? 'danger' : status === 'low' ? 'warning' : 'success'
       }
     >
-      {status === 'out'
+      {status === 'unknown' ? 'Pendiente de conteo' : status === 'out'
         ? 'Sin existencias'
         : status === 'low'
           ? 'Stock bajo'
@@ -29,8 +29,7 @@ export function ProductIdentity({ item }: { item: InventoryItem }) {
       <div>
         <strong>{item.product.name}</strong>
         <small>
-          {item.product.brand} <span>·</span> {item.product.size}{' '}
-          {item.product.unit}
+          {item.product.brand} <span>·</span> {item.product.size === null ? 'Tamaño por confirmar' : `${item.product.size} ${item.product.unit}`}
         </small>
       </div>
     </div>
@@ -54,13 +53,13 @@ export function ProductCard({ item }: { item: InventoryItem }) {
       </div>
       <div className="location-strip">
         <span>
-          Bodega <b>{item.quantities.warehouse}</b>
+          Bodega <b>{item.quantities.warehouse ?? '—'}</b>
         </span>
         <span>
-          Tienda <b>{item.quantities.store}</b>
+          Tienda <b>{item.quantities.store ?? '—'}</b>
         </span>
         <span>
-          Total <b>{totalStock(item)}</b>
+          Total <b>{totalStock(item) ?? '—'}</b>
         </span>
       </div>
     </article>

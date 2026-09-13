@@ -1,11 +1,12 @@
 import { Link } from 'react-router-dom'
 import { ArrowRight } from 'lucide-react'
 import { Card, EmptyState, ErrorState, LoadingState } from '../../components/ui'
-import { inventoryService } from '../../services'
+import { useServices } from '../../services/useServices'
 import { useQuery } from '../../lib/useQuery'
 import { ProductCard } from '../inventory/ProductCard'
 import { useAccess } from '../../app/AccessContext'
 export function AlertsPage() {
+  const { inventoryService } = useServices()
   const { data, error, loading, retry } = useQuery(inventoryService.getLowStock)
   const { base } = useAccess()
   return (

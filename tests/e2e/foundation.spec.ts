@@ -89,7 +89,7 @@ test('demo dashboard, responsive layout, inventory filters and navigation', asyn
     page.getByRole('heading', { name: 'Todo en orden.' }),
   ).toBeVisible()
   await expect(
-    page.getByText('Datos de demostración · Solo lectura'),
+    page.getByText('Datos de demostración · Simulación local'),
   ).toBeVisible()
   expect(
     await page.evaluate(
@@ -119,7 +119,8 @@ test('demo dashboard, responsive layout, inventory filters and navigation', asyn
     fullPage: true,
   })
   for (const [path, title] of [
-    ['sales', 'Nueva venta'],
+    ['sales', 'Facturación'],
+    ['proformas', 'Proformas'],
     ['products', 'Productos'],
     ['alerts', 'Alertas de inventario'],
   ] as const) {
