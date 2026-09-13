@@ -1,13 +1,17 @@
 import { beforeEach, expect, it, vi } from 'vitest'
-const { query, signed, rpc } = vi.hoisted(() => ({
+const { query, signed, rpc, eq } = vi.hoisted(() => ({
   query: vi.fn(),
   signed: vi.fn(),
   rpc: vi.fn(),
+  eq: vi.fn(),
 }))
 vi.mock('../../lib/supabase', () => {
   const chain = {
     select: () => chain,
-    eq: () => chain,
+    eq: (...args: unknown[]) => {
+      eq(...args)
+      return chain
+    },
     order: () => chain,
     limit: query,
   }
@@ -48,6 +52,19 @@ beforeEach(() => {
   query.mockReset()
   signed.mockReset()
   rpc.mockReset()
+  eq.mockReset()
+})
+it('only includes archived products when explicitly requested and preserves their stock', async () => {
+  query.mockResolvedValue({
+    data: [{ ...row, active: false, image_path: null }],
+    error: null,
+  })
+  const [item] = await supabaseAdapter.getInventory(true)
+  expect(eq).not.toHaveBeenCalledWith('active', true)
+  expect(item.product.active).toBe(false)
+  expect(item.quantities).toEqual({ warehouse: null, store: 4 })
+  await supabaseAdapter.getInventory()
+  expect(eq).toHaveBeenCalledWith('active', true)
 })
 it('loads stored photos once and never derives a Drive thumbnail', async () => {
   query.mockResolvedValue({ data: [row], error: null })

@@ -26,7 +26,6 @@ const links = [
   ['/scanner', 'Escanear', ScanLine],
   ['/sales', 'Facturación', ShoppingBag],
   ['/proformas', 'Proformas', FileText],
-  ['/products', 'Catálogo', Layers3],
   ['/alerts', 'Alertas', Bell],
   ['/suppliers', 'Proveedores', Truck],
   ['/account', 'Mi cuenta', UserRound],

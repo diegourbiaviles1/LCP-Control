@@ -29,7 +29,8 @@ export function createServices(provider: DataProvider) {
       },
     },
     inventoryService: {
-      getInventory: () => provider.getInventory(),
+      getInventory: (includeInactive = false) =>
+        provider.getInventory(includeInactive),
       recordMovement: (input: MovementRequest) =>
         provider.recordMovement(input),
       async getLowStock() {

@@ -15,7 +15,7 @@ export interface DataProvider {
   removeProduct(id: string, revision: number): Promise<'archived' | 'deleted'>
   uploadProductImage(blob: Blob): Promise<string>
   readonly mode: 'demo' | 'supabase'
-  getInventory(): Promise<InventoryItem[]>
+  getInventory(includeInactive?: boolean): Promise<InventoryItem[]>
   findByBarcode(code: string): Promise<Product | null>
   getTodaySummary(): Promise<{
     count: number

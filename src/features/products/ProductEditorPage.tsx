@@ -1,3 +1,4 @@
+import { ProductStockEditor } from './ProductStockEditor'
 import { can } from '../../lib/permissions'
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
@@ -29,11 +30,12 @@ import {
 
 export function ProductEditorPage() {
   const { role, demo } = useAccess()
+  const { id } = useParams()
   if (!can(role, 'product.manage') && !demo)
     return (
       <ErrorState message="Solo los administradores pueden editar el catálogo." />
     )
-  return <ProductLoader />
+  return <ProductLoader key={id ?? 'new'} />
 }
 function ProductLoader() {
   const { id } = useParams()
@@ -116,10 +118,16 @@ function ProductForm({
         update('imagePath', imagePath)
         setFile(null) // Keep this path for a retry if the product save fails.
       }
-      await productService.saveProduct({ ...parsed.data, imagePath })
-      navigate(`${base}/products/manage`, {
-        state: { message: 'Perfume guardado.' },
+      const savedId = await productService.saveProduct({
+        ...parsed.data,
+        imagePath,
       })
+      navigate(
+        product ? `${base}/inventory` : `${base}/products/${savedId}/edit`,
+        {
+          state: { message: 'Perfume guardado.' },
+        },
+      )
     } catch (e) {
       setError(errorMessage(e))
     } finally {
@@ -135,7 +143,7 @@ function ProductForm({
         product.id,
         product.revision ?? 0,
       )
-      navigate(`${base}/products/manage`, {
+      navigate(`${base}/inventory`, {
         state: {
           message:
             result === 'archived'
@@ -159,11 +167,8 @@ function ProductForm({
             {product?.barcode ?? 'El código interno se asignará al guardar.'}
           </p>
         </div>
-        <Link
-          className="button button-secondary"
-          to={`${base}/products/manage`}
-        >
-          Volver al catálogo
+        <Link className="button button-secondary" to={`${base}/inventory`}>
+          Volver al inventario
         </Link>
       </div>
       {demo && (
@@ -372,6 +377,13 @@ function ProductForm({
           )}
         </div>
       </form>
+      {product ? (
+        <ProductStockEditor product={product} disabled={busy} />
+      ) : (
+        <p className="page-feedback">
+          Guarda el perfume para registrar sus cantidades en Tienda y Bodega.
+        </p>
+      )}
       {confirmRemove && (
         <Dialog
           open

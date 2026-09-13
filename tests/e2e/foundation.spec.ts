@@ -129,7 +129,7 @@ test('demo dashboard, responsive layout, inventory filters and navigation', asyn
   for (const [path, title] of [
     ['sales', 'Facturación'],
     ['proformas', 'Proformas'],
-    ['products', 'Catálogo'],
+    ['products', 'Inventario'],
     ['alerts', 'Alertas de inventario'],
     ['suppliers', 'Proveedores'],
   ] as const) {

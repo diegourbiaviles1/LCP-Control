@@ -1,4 +1,4 @@
-import { Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes } from 'react-router-dom'
 import { lazy, Suspense } from 'react'
 import { AppShell } from './AppShell'
 import { LoginPage } from '../features/auth/LoginPage'
@@ -8,7 +8,6 @@ import { DashboardPage } from '../features/dashboard/DashboardPage'
 import { InventoryPage } from '../features/inventory/InventoryPage'
 import { AlertsPage } from '../features/alerts/AlertsPage'
 import { ProductEditorPage } from '../features/products/ProductEditorPage'
-import { ProductManagementPage } from '../features/products/ProductManagementPage'
 import { AccountPage } from '../features/auth/AccountPage'
 import { DocumentExamplePage } from '../features/sales/DocumentExamplePage'
 import { SuppliersPage } from '../features/suppliers/SuppliersPage'
@@ -38,6 +37,10 @@ const ScannerPage = lazy(() =>
     default: page.ScannerPage,
   })),
 )
+function InventoryRedirect() {
+  const { base } = useAccess()
+  return <Navigate to={`${base}/inventory`} replace />
+}
 const SalesPage = lazy(() =>
   import('../features/sales/SalesPage').then((page) => ({
     default: page.SalesPage,
@@ -91,9 +94,9 @@ export function App() {
           </AccessGate>
         }
       />
-      <Route path="products" element={<InventoryPage catalog />} />
+      <Route path="products" element={<InventoryRedirect />} />
       <Route path="products/new" element={<ProductEditorPage />} />
-      <Route path="products/manage" element={<ProductManagementPage />} />
+      <Route path="products/manage" element={<InventoryRedirect />} />
       <Route path="products/:id/edit" element={<ProductEditorPage />} />
       <Route path="account" element={<AccountPage />} />
       <Route path="documents/example/:kind" element={<DocumentExamplePage />} />

@@ -1,7 +1,17 @@
+import { WorkspaceHeading } from '../../components/WorkspacePresentation'
 import { can } from '../../lib/permissions'
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
-import { ScanLine, ArrowLeft, ArrowRight } from 'lucide-react'
+import { useCallback, useState } from 'react'
+import { Link, useLocation } from 'react-router-dom'
+import {
+  ScanLine,
+  ArrowLeft,
+  ArrowRight,
+  Package,
+  Plus,
+  Pencil,
+  LayoutGrid,
+  List,
+} from 'lucide-react'
 import {
   Button,
   Card,
@@ -38,18 +48,30 @@ import { ProductCard, ProductIdentity, StockBadge } from './ProductCard'
 import { useAccess } from '../../app/AccessContext'
 import { MovementDrafts } from './MovementDrafts'
 import { InventoryMovements } from './InventoryMovements'
-export function InventoryPage({ catalog = false }: { catalog?: boolean }) {
+export function InventoryPage() {
+  const { base, demo, role } = useAccess()
+  const { state } = useLocation()
+  const manage = can(role, 'product.manage') || demo
+  const [catalog, setCatalog] = useState(true)
+  const [status, setStatus] = useState('active')
   const { inventoryService } = useServices()
-  const { data, loading, error, retry } = useQuery(
-    inventoryService.getInventory,
+  const load = useCallback(
+    () => inventoryService.getInventory(manage),
+    [inventoryService, manage],
   )
+  const { data, loading, error, retry } = useQuery(load)
   const [filters, setFilters] = useState<InventoryFilters>(emptyFilters)
   const [currency, setCurrency] = useState<Currency>('NIO')
   const [tier, setTier] = useState<PriceTier>('emprendedor')
   const [page, setPage] = useState(1)
   const [selected, setSelected] = useState<Product | null>(null)
-  const { base, demo, role } = useAccess()
-  const items = filterInventory(data ?? [], filters)
+  const items = filterInventory(
+    (data ?? []).filter(
+      ({ product }) =>
+        status === 'all' || product.active === (status === 'active'),
+    ),
+    filters,
+  )
   const perPage = 24
   const pages = Math.max(1, Math.ceil(items.length / perPage))
   const currentPage = Math.min(page, pages)
@@ -78,34 +100,36 @@ export function InventoryPage({ catalog = false }: { catalog?: boolean }) {
   }
   return (
     <>
-      <div className="page-heading">
-        <div>
-          <h1>{catalog ? 'Catálogo' : 'Inventario'}</h1>
-          <p className="muted">
-            {catalog
-              ? 'Perfumes, presentaciones y listas de mayor.'
-              : 'Existencias y movimientos por ubicación.'}
-          </p>
-        </div>
-        {(can(role, 'product.manage') || demo) && (
-          <Link
-            className="button button-secondary"
-            to={`${base}/products/manage`}
-          >
-            Administrar perfumes
+      <WorkspaceHeading
+        title="Inventario"
+        eyebrow="PERFUMES Y EXISTENCIAS"
+        icon={Package}
+        description="Fotos, precios y cantidades de Tienda y Bodega, en un solo lugar."
+      >
+        <div className="inventory-actions">
+          {manage && (
+            <Link className="button button-primary" to={`${base}/products/new`}>
+              <Plus size={18} /> Nuevo perfume
+            </Link>
+          )}
+          <Link className="button button-secondary" to={`${base}/scanner`}>
+            <ScanLine size={18} /> Escanear producto
           </Link>
-        )}
-        <Link className="button button-primary" to={`${base}/scanner`}>
-          <ScanLine size={18} />
-          Escanear producto
-        </Link>
-      </div>
-      {!catalog &&
-        (demo ? (
-          <MovementDrafts items={data ?? []} />
-        ) : (
-          <InventoryMovements items={data ?? []} onRecorded={retry} />
-        ))}
+        </div>
+      </WorkspaceHeading>
+      {state?.message && (
+        <p role="status" className="page-feedback">
+          {state.message}
+        </p>
+      )}
+      {demo ? (
+        <MovementDrafts items={(data ?? []).filter((i) => i.product.active)} />
+      ) : (
+        <InventoryMovements
+          items={(data ?? []).filter((i) => i.product.active)}
+          onRecorded={retry}
+        />
+      )}
       <Card>
         <div className="inventory-toolbar">
           <div className="catalog-toolbar-heading">
@@ -175,27 +199,36 @@ export function InventoryPage({ catalog = false }: { catalog?: boolean }) {
                 </option>
               ))}
             </Select>
-            {!catalog && (
+            {manage && (
               <Select
-                label="Existencias"
-                value={filters.stock}
-                onChange={(e) =>
-                  change({ stock: e.target.value as StockFilter })
-                }
+                label="Mostrar perfumes"
+                value={status}
+                onChange={(e) => {
+                  setStatus(e.target.value)
+                  setPage(1)
+                }}
               >
-                <option value="">Todas</option>
-                <option value="unknown">Sin conteo</option>
-                <option value="available">Con existencias</option>
-                <option value="low">Bajo el mínimo</option>
-                <option value="out">Sin existencias</option>
+                <option value="active">Activos</option>
+                <option value="inactive">Inactivos</option>
+                <option value="all">Todos</option>
               </Select>
             )}
+            <Select
+              label="Existencias"
+              value={filters.stock}
+              onChange={(e) => change({ stock: e.target.value as StockFilter })}
+            >
+              <option value="">Todas</option>
+              <option value="unknown">Sin conteo</option>
+              <option value="available">Con existencias</option>
+              <option value="low">Bajo el mínimo</option>
+              <option value="out">Sin existencias</option>
+            </Select>
           </div>
           <div className="filter-note">
             <span>
-              {catalog
-                ? 'Precios de las listas recibidas. Géneros y tamaños pendientes se indican en cada ficha.'
-                : '— indica que el conteo aún no está registrado. «Agotado en lista» no equivale a un conteo de inventario.'}
+              — indica que el conteo aún no está registrado. Puedes actualizar
+              fotos, precios y cantidades desde Editar.
             </span>
             <Button
               variant="ghost"
@@ -208,6 +241,26 @@ export function InventoryPage({ catalog = false }: { catalog?: boolean }) {
             </Button>
           </div>
         </div>
+        <div
+          className="inventory-view-switch"
+          role="group"
+          aria-label="Vista de inventario"
+        >
+          <Button
+            variant="ghost"
+            aria-pressed={catalog}
+            onClick={() => setCatalog(true)}
+          >
+            <LayoutGrid size={17} /> Tarjetas
+          </Button>
+          <Button
+            variant="ghost"
+            aria-pressed={!catalog}
+            onClick={() => setCatalog(false)}
+          >
+            <List size={17} /> Tabla
+          </Button>
+        </div>
         {loading ? (
           <LoadingState />
         ) : error ? (
@@ -216,34 +269,55 @@ export function InventoryPage({ catalog = false }: { catalog?: boolean }) {
           <EmptyState />
         ) : catalog ? (
           <div className="catalog-grid">
-            {shown.map(({ product: p }) => (
-              <article className="catalog-product" key={p.id}>
-                <button
-                  className="product-photo-button"
-                  onClick={() => setSelected(p)}
-                  aria-label={`Ver ${p.name}`}
-                >
-                  <ProductImage product={p} large />
-                </button>
-                <div className="catalog-product-body">
-                  <span className="product-brand">{p.brand}</span>
+            {shown.map((item) => {
+              const p = item.product
+              return (
+                <article className="catalog-product" key={p.id}>
                   <button
-                    className="product-title"
+                    className="product-photo-button"
                     onClick={() => setSelected(p)}
+                    aria-label={`Ver ${p.name}`}
                   >
-                    {p.name}
+                    <ProductImage product={p} large />
                   </button>
-                  <p>
-                    {p.size === null
-                      ? 'Tamaño por confirmar'
-                      : `${p.size} ${p.unit}`}{' '}
-                    · {labels.category[p.category]}
-                  </p>
-                  <strong className="catalog-price">{price(p)}</strong>
-                  <small>{p.availabilityNote}</small>
-                </div>
-              </article>
-            ))}
+                  <div className="catalog-product-body">
+                    <span className="product-brand">{p.brand}</span>
+                    <button
+                      className="product-title"
+                      onClick={() => setSelected(p)}
+                    >
+                      {p.name}
+                    </button>
+                    <p>
+                      {p.size === null
+                        ? 'Tamaño por confirmar'
+                        : `${p.size} ${p.unit}`}{' '}
+                      · {labels.category[p.category]}
+                    </p>
+                    <strong className="catalog-price">{price(p)}</strong>
+                    <div className="catalog-stock">
+                      <span>
+                        Bodega <b>{item.quantities.warehouse ?? '—'}</b>
+                      </span>
+                      <span>
+                        Tienda <b>{item.quantities.store ?? '—'}</b>
+                      </span>
+                    </div>
+                    {!p.active && (
+                      <span className="record-badge">Inactivo</span>
+                    )}
+                    {manage && (
+                      <Link
+                        className="button button-secondary inventory-edit"
+                        to={`${base}/products/${p.id}/edit`}
+                      >
+                        <Pencil size={15} /> Editar
+                      </Link>
+                    )}
+                  </div>
+                </article>
+              )
+            })}
           </div>
         ) : (
           <>
@@ -257,6 +331,7 @@ export function InventoryPage({ catalog = false }: { catalog?: boolean }) {
                     <th>Total</th>
                     <th>Precio</th>
                     <th>Estado</th>
+                    {manage && <th>Acciones</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -278,8 +353,22 @@ export function InventoryPage({ catalog = false }: { catalog?: boolean }) {
                       <td>{totalStock(item) ?? '—'}</td>
                       <td>{price(item.product)}</td>
                       <td>
-                        <StockBadge item={item} />
+                        {item.product.active ? (
+                          <StockBadge item={item} />
+                        ) : (
+                          <span className="record-badge">Inactivo</span>
+                        )}
                       </td>
+                      {manage && (
+                        <td>
+                          <Link
+                            className="button button-secondary"
+                            to={`${base}/products/${item.product.id}/edit`}
+                          >
+                            Editar
+                          </Link>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -295,6 +384,14 @@ export function InventoryPage({ catalog = false }: { catalog?: boolean }) {
                   >
                     Ver ficha y código
                   </Button>
+                  {manage && (
+                    <Link
+                      className="button button-secondary"
+                      to={`${base}/products/${item.product.id}/edit`}
+                    >
+                      Editar
+                    </Link>
+                  )}
                 </div>
               ))}
             </div>

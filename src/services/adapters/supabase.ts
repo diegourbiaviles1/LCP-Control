@@ -85,9 +85,14 @@ document_items(id,product_id,description,quantity,unit_price,line_total)`
 
 // Read-only screens remain usable while the new migration is being applied.
 // Editing still fails explicitly until the write RPCs and columns exist.
-async function activeProductRows(column?: 'barcode' | 'sku', code?: string) {
+async function activeProductRows(
+  column?: 'barcode' | 'sku',
+  code?: string,
+  includeInactive = false,
+) {
   async function query(selection: string) {
-    let request = client().from('products').select(selection).eq('active', true)
+    let request = client().from('products').select(selection)
+    if (!includeInactive) request = request.eq('active', true)
     if (column && code) request = request.eq(column, code)
     return request.order('name').limit(column ? 1 : 2000)
   }
@@ -295,8 +300,10 @@ export const supabaseAdapter: DataProvider = {
     if (error) fail(error)
     return path
   },
-  async getInventory() {
-    return (await activeProductRows()).map(toItem)
+  async getInventory(includeInactive = false) {
+    return (await activeProductRows(undefined, undefined, includeInactive)).map(
+      toItem,
+    )
   },
   // Two equality filters instead of an `or(...)` string: the scanned code is
   // never interpolated into PostgREST filter syntax.

@@ -28,7 +28,7 @@ Mantener el servidor encendido mientras se utiliza la aplicación. Usar siempre 
 - **Proformas:** emite `PRO-…` con vigencia; no cobra ni modifica inventario. Tiene borradores separados de las facturas.
 - **Documentos emitidos:** muestran los renglones e importes confirmados por la base, quedan bloqueados para edición y pueden imprimirse o compartirse. Para preparar otro documento se usa Nueva factura/Nueva proforma. El RUC del cliente se conserva al emitir. El historial permite reabrir los últimos 200 documentos autorizados y reimprimirlos.
 - **WhatsApp y PDF:** comparten un borrador identificado como tal o el documento emitido. WhatsApp abre el mensaje para revisión y envío manual. El PDF usa el menú de compartir cuando el navegador lo permite; en computadora se descarga.
-- **Administrar perfumes:** alta, edición, cambio de foto, seis precios y retiro/reactivación para administradores. Requiere la nueva migración de catálogo.
+- **Inventario unificado:** vistas de tarjetas y tabla, alta, edición, cambio de foto, seis precios y retiro/reactivación para administradores. Desde la edición se pueden sumar o descontar cantidades por ubicación, con motivo e historial. Los datos del perfume y los movimientos tienen botones de guardado independientes.
 - **Mi cuenta:** nombre visible, correo y contraseña de la propia cuenta.
 - **Clientes:** alta, edición, archivo, contacto, RUC y lista de precios; selección directa al facturar/cotizar.
 - **Usuarios:** autorización previa de correos, cinco roles y desactivación conservando el historial. Cada persona activa su acceso en `/activate`. El envío SMTP a usuarios fuera del equipo de Supabase está pendiente.

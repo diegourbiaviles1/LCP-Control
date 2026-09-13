@@ -4,7 +4,9 @@
 
 Las migraciones de catálogo y gestión completa están aplicadas en el proyecto activo `xkpujpoocsbkychstrne`. La configuración local apunta a esa base. Consulta [estado, permisos y activación](database.md).
 
-Con una cuenta activa de Administrador o SuperAdmin, abrir **Catálogo → Administrar perfumes**. No repetir migraciones ya aplicadas.
+Con una cuenta activa de Administrador o SuperAdmin, abrir **Inventario → Nuevo perfume** o **Editar** en la ficha. Inventario reúne fotos, precios y existencias en vistas de tarjetas y tabla; el filtro **Mostrar perfumes** permite recuperar inactivos. Los enlaces anteriores de Catálogo y Administrar perfumes redirigen a Inventario. No repetir migraciones ya aplicadas.
+
+En **Editar → Cantidades del perfume**, seleccionar Tienda o Bodega, agregar/descontar unidades o registrar el conteo total y escribir el motivo. **Guardar cantidades** guarda ese movimiento por separado de **Guardar perfume** (datos, precios y foto). Las unidades se registran con el RPC existente, sus permisos y su clave de reintento; se recarga el saldo de la base después de guardar. Una ubicación sin conteo requiere un total explícito, que puede ser cero. Al crear un perfume se abre su edición para registrar las cantidades.
 
 ## Edición del catálogo
 

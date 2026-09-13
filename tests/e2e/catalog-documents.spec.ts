@@ -4,7 +4,8 @@ test('product editor exposes all fields and photo replacement without real write
   page,
 }, info) => {
   await page.goto('/demo/products/manage')
-  await page.getByLabel('Buscar perfume').fill('Cedro 01')
+  await expect(page).toHaveURL(/\/demo\/inventory$/)
+  await page.getByLabel('Buscar producto').fill('Cedro 01')
   await page.getByRole('link', { name: 'Editar', exact: true }).click()
   await expect(page.getByLabel('Nombre del perfume')).toHaveValue('Cedro 01')
   await page.getByLabel('Nombre del perfume').fill('Nombre revisado')
