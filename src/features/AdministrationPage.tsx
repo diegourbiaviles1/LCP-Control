@@ -1,3 +1,9 @@
+import { UsersRound, ShieldCheck, Store, UserPlus, Pencil } from 'lucide-react'
+import {
+  WorkspaceHeading,
+  WorkspaceEmpty,
+} from '../components/WorkspacePresentation'
+import { Brand } from '../components/Brand'
 import { useState, useCallback, type FormEvent } from 'react'
 import {
   Button,
@@ -31,13 +37,13 @@ export function StaffPage() {
   const [editingEmail, setEditingEmail] = useState(false)
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
-  if (!permitted)
+  if (!permitted && !demo)
     return (
       <ErrorState message="Solo los administradores pueden gestionar usuarios." />
     )
   async function submit(e: FormEvent) {
     e.preventDefault()
-    if (!form || busy) return
+    if (!form || busy || !permitted) return
     setBusy(true)
     try {
       await saveStaff(form)
@@ -54,9 +60,14 @@ export function StaffPage() {
   }
   return (
     <>
-      <div className="page-heading">
-        <h1>Usuarios y permisos</h1>
+      <WorkspaceHeading
+        eyebrow="EQUIPO DE LA TIENDA"
+        title="Usuarios y permisos"
+        description="Cada persona con el acceso que necesita para trabajar."
+        icon={UsersRound}
+      >
         <Button
+          disabled={demo}
           onClick={() => {
             setEditingEmail(false)
             setForm({
@@ -68,19 +79,36 @@ export function StaffPage() {
             })
           }}
         >
-          Autorizar correo
+          <UserPlus size={17} /> Autorizar correo
         </Button>
+      </WorkspaceHeading>
+      <div className="access-note">
+        <ShieldCheck size={21} />
+        <div>
+          <strong>Un acceso personal para cada integrante</strong>
+          <p>
+            Autoriza su correo, asigna sus permisos y deja que active su propia
+            cuenta.
+          </p>
+        </div>
       </div>
-      <p>
-        SuperAdmin y administradores gestionan el negocio. Ventas registra
-        clientes y documentos. Inventario registra movimientos. Solo consulta
-        puede ver catálogo y existencias.
-      </p>
-      {message && <p role="status">{message}</p>}
+      {message && (
+        <p role="status" className="workspace-feedback">
+          {message}
+        </p>
+      )}
       {loading && <LoadingState />}
       {error && <ErrorState message={error} retry={retry} />}
       {form && (
-        <Card>
+        <Card className="form-card record-form">
+          <div className="section-heading">
+            <div>
+              <span className="section-kicker">ACCESO DEL PERSONAL</span>
+              <h2>
+                {editingEmail ? 'Editar permisos' : 'Autorizar una cuenta'}
+              </h2>
+            </div>
+          </div>
           <form onSubmit={submit}>
             <div className="form-grid">
               <Input
@@ -126,26 +154,39 @@ export function StaffPage() {
                 <option value="false">Deshabilitado</option>
               </Select>
             </div>
-            <Button disabled={busy}>Guardar</Button>
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => setForm(null)}
-            >
-              Cancelar
-            </Button>
+            <div className="form-actions">
+              <Button disabled={busy || demo}>Guardar</Button>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setForm(null)}
+              >
+                Cancelar
+              </Button>
+            </div>
           </form>
         </Card>
       )}
-      <div className="supplier-grid">
+      <div className="record-grid">
         {data?.map((r) => (
-          <Card key={r.email}>
+          <Card key={r.email} className="record-card staff-card">
+            <div className="record-card-top">
+              <span className="record-avatar">
+                <ShieldCheck size={22} />
+              </span>
+              <span
+                className={`record-badge ${!r.active ? 'is-muted' : !r.registered ? 'is-pending' : ''}`}
+              >
+                {!r.active
+                  ? 'Deshabilitado'
+                  : r.registered
+                    ? 'Activo'
+                    : 'Por activar'}
+              </span>
+            </div>
             <h2>{r.display_name}</h2>
-            <p>{r.email}</p>
-            <p>
-              {roleLabels[r.role]} · {r.active ? 'Activo' : 'Deshabilitado'} ·{' '}
-              {r.registered ? 'Registrado' : 'Pendiente de activación'}
-            </p>
+            <p className="record-email">{r.email}</p>
+            <span className="role-pill">{roleLabels[r.role]}</span>
             {(r.role !== 'superadmin' || role === 'superadmin') && (
               <Button
                 variant="secondary"
@@ -154,10 +195,30 @@ export function StaffPage() {
                   setForm(r)
                 }}
               >
-                Editar permisos
+                <Pencil size={14} /> Editar permisos
               </Button>
             )}
           </Card>
+        ))}
+      </div>
+      {!loading && !error && !data?.length && (
+        <WorkspaceEmpty
+          icon={UsersRound}
+          title="Tu equipo comienza aquí"
+          description="Las cuentas autorizadas aparecerán con su rol y estado de activación."
+        />
+      )}
+      <div className="role-guide">
+        {[
+          ['Administración', 'Catálogo, ventas, inventario y equipo.'],
+          ['Ventas', 'Clientes, facturas, proformas y salidas.'],
+          ['Inventario', 'Entradas, salidas, daños y conteos.'],
+          ['Solo consulta', 'Catálogo, fotografías y existencias.'],
+        ].map(([title, detail]) => (
+          <div key={title}>
+            <strong>{title}</strong>
+            <p>{detail}</p>
+          </div>
         ))}
       </div>
     </>
@@ -169,12 +230,13 @@ export function BusinessPage() {
   const { data, error, loading, retry } = useQuery(salesService.getBusiness)
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
-  if (demo || !can(role, 'settings.manage'))
+  if (!demo && !can(role, 'settings.manage'))
     return (
       <ErrorState message="Solo los administradores pueden configurar el negocio." />
     )
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
+    if (demo || busy || !can(role, 'settings.manage')) return
     const f = new FormData(e.currentTarget)
     setBusy(true)
     try {
@@ -193,40 +255,68 @@ export function BusinessPage() {
   }
   return (
     <>
-      <h1>Datos del negocio</h1>
-      <p>
-        Se usan en los documentos nuevos. Los documentos emitidos conservan sus
-        datos originales.
-      </p>
+      <WorkspaceHeading
+        eyebrow="IDENTIDAD COMERCIAL"
+        title="Datos del negocio"
+        description="La información que acompaña a cada factura y proforma."
+        icon={Store}
+      />
       {loading && <LoadingState />}
       {error && <ErrorState message={error} retry={retry} />}
-      <Card>
-        {data && (
-          <form onSubmit={submit} key={JSON.stringify(data)}>
-            <Input
-              label="Nombre comercial"
-              name="name"
-              required
-              maxLength={160}
-              defaultValue={data.name}
-            />
-            <Input
-              label="Dirección"
-              name="address"
-              maxLength={600}
-              defaultValue={data.address}
-            />
-            <Input
-              label="Teléfono"
-              name="phone"
-              maxLength={60}
-              defaultValue={data.phone}
-            />
-            <Button disabled={busy}>Guardar</Button>
-          </form>
-        )}
-        {message && <p role="status">{message}</p>}
-      </Card>
+      <div className="business-settings-layout">
+        <Card className="business-identity">
+          <Brand wordmark />
+          <span className="section-kicker">LA CASA DEL PERFUME</span>
+          <h2>El sello de tu negocio</h2>
+          <p>
+            Mantén tus datos de contacto al día para que tus clientes siempre
+            sepan dónde encontrarte.
+          </p>
+          <div className="business-note">
+            <ShieldCheck size={18} />
+            <span>
+              Los documentos emitidos conservan su información original.
+            </span>
+          </div>
+        </Card>
+        <Card className="form-card record-form">
+          <div className="section-heading">
+            <div>
+              <span className="section-kicker">INFORMACIÓN GENERAL</span>
+              <h2>Cómo te encuentran tus clientes</h2>
+            </div>
+          </div>
+          {data && (
+            <form onSubmit={submit} key={JSON.stringify(data)}>
+              <Input
+                label="Nombre comercial"
+                name="name"
+                required
+                maxLength={160}
+                defaultValue={data.name}
+              />
+              <Input
+                label="Dirección"
+                name="address"
+                maxLength={600}
+                defaultValue={data.address}
+              />
+              <Input
+                label="Teléfono"
+                name="phone"
+                maxLength={60}
+                defaultValue={data.phone}
+              />
+              <Button disabled={busy || demo}>Guardar</Button>
+            </form>
+          )}
+          {message && (
+            <p role="status" className="workspace-feedback">
+              {message}
+            </p>
+          )}
+        </Card>
+      </div>
     </>
   )
 }

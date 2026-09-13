@@ -51,8 +51,9 @@ test('the invoice screen recalculates every tier and currency, saves and reopens
 }, info) => {
   await page.goto('/demo/sales')
   await page.getByLabel('Cliente', { exact: true }).fill('Cliente de prueba')
-  await page.getByLabel('Producto para la factura').selectOption('demo-0001')
-  await page.getByRole('button', { name: 'Agregar', exact: true }).click()
+  await page
+    .getByRole('button', { name: /^Agregar Aurora Norte Cedro 01/ })
+    .click()
   await page.getByLabel('Cantidad de Aurora Norte Cedro 01').fill('3')
   await expect(page.locator('.invoice-total')).toContainText('3,000.00')
   await page.getByLabel('Moneda', { exact: true }).selectOption('USD')
@@ -98,8 +99,9 @@ test('proformas are a separate screen and never share drafts with invoices', asy
 }, info) => {
   await page.goto('/demo/sales')
   await page.getByLabel('Cliente', { exact: true }).fill('Cliente de factura')
-  await page.getByLabel('Producto para la factura').selectOption('demo-0001')
-  await page.getByRole('button', { name: 'Agregar', exact: true }).click()
+  await page
+    .getByRole('button', { name: /^Agregar Aurora Norte Cedro 01/ })
+    .click()
   await page.getByRole('button', { name: 'Guardar borrador' }).click()
   await expect(page.getByRole('status')).toContainText('Borrador guardado')
   await page.goto('/demo/proformas')
@@ -116,8 +118,9 @@ test('proformas are a separate screen and never share drafts with invoices', asy
   await expect(page.getByLabel('Forma de pago')).toHaveCount(0)
   await page.getByLabel('Cliente', { exact: true }).fill('Cliente de proforma')
   await page.getByLabel('WhatsApp del cliente').fill('5555 0100')
-  await page.getByLabel('Producto para la proforma').selectOption('demo-0001')
-  await page.getByRole('button', { name: 'Agregar', exact: true }).click()
+  await page
+    .getByRole('button', { name: /^Agregar Aurora Norte Cedro 01/ })
+    .click()
   await expect(page.locator('.invoice-total')).toContainText('1,000.00')
   await expect(
     page.getByRole('button', { name: 'Enviar por WhatsApp' }),

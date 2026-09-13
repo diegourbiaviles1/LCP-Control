@@ -1,3 +1,4 @@
+import { ProductPicker } from './ProductPicker'
 import { useCallback, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { listContacts } from '../../services/workspace'
@@ -103,8 +104,6 @@ export function DocumentWorkspace({ kind }: { kind: DocumentKind }) {
   const [location, setLocation] = useState<InventoryLocation>('store')
   const [validUntil, setValidUntil] = useState(defaultValidUntil())
   const [notes, setNotes] = useState('')
-  const [search, setSearch] = useState('')
-  const [productId, setProductId] = useState('')
   const [lines, setLines] = useState<DraftLine[]>([])
   const [current, setCurrent] = useState<{
     id: string
@@ -122,7 +121,7 @@ export function DocumentWorkspace({ kind }: { kind: DocumentKind }) {
       line.quantity > 0 &&
       line.quantity <= 9999,
   )
-  const total = valid && lines.length ? draftTotal(lines, tier, currency) : null
+  const total = valid ? draftTotal(lines, tier, currency) : null
   const draft: DocumentDraft | null =
     lines.length && valid
       ? {
@@ -148,7 +147,7 @@ export function DocumentWorkspace({ kind }: { kind: DocumentKind }) {
   const shareable: DocumentRecord | null =
     issued ?? (draft && business ? draftPreview(draft, business) : null)
 
-  function add() {
+  function add(productId: string) {
     const product = data?.find((item) => item.product.id === productId)?.product
     if (!product?.prices) {
       setMessage('Selecciona un producto del catálogo.')
@@ -176,7 +175,6 @@ export function DocumentWorkspace({ kind }: { kind: DocumentKind }) {
       },
     ])
     setMessage('')
-    setProductId('')
   }
 
   async function saveDraft() {
@@ -297,8 +295,6 @@ export function DocumentWorkspace({ kind }: { kind: DocumentKind }) {
     setValidUntil(defaultValidUntil())
     setMessage('')
     setFailure('')
-    setProductId('')
-    setSearch('')
     setPayment('pending')
     setLocation('store')
   }
@@ -371,8 +367,16 @@ export function DocumentWorkspace({ kind }: { kind: DocumentKind }) {
           className="invoice-editor no-print"
           disabled={busy || !!issued}
         >
-          <Card className="form-card">
-            <h2>Datos de la {copy.singular}</h2>
+          <Card className="form-card picker-panel">
+            <div className="section-heading">
+              <div>
+                <span className="section-kicker">ELIGE TUS PERFUMES</span>
+                <h2>Catálogo a la mano</h2>
+              </div>
+              <span className="section-counter">
+                {lines.length} {lines.length === 1 ? 'agregado' : 'agregados'}
+              </span>
+            </div>
             <PriceControls
               currency={currency}
               tier={tier}
@@ -385,6 +389,17 @@ export function DocumentWorkspace({ kind }: { kind: DocumentKind }) {
                 setTier(value)
               }}
             />
+            <ProductPicker
+              items={data ?? []}
+              currency={currency}
+              tier={tier}
+              location={location}
+              added={lines.map((line) => line.productId)}
+              onAdd={add}
+            />
+          </Card>
+          <Card className="form-card">
+            <h2>Datos de la {copy.singular}</h2>
             {!demo && (
               <Select
                 label="Cliente registrado"
@@ -478,38 +493,6 @@ export function DocumentWorkspace({ kind }: { kind: DocumentKind }) {
                 />
               )}
             </div>
-          </Card>
-          <Card className="form-card">
-            <h2>Agregar productos</h2>
-            <Input
-              label="Buscar en catálogo"
-              placeholder="Nombre, marca o código interno"
-              type="search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-            <Select
-              label={`Producto para la ${copy.singular}`}
-              value={productId}
-              onChange={(e) => setProductId(e.target.value)}
-            >
-              <option value="">Selecciona un producto</option>
-              {data
-                ?.filter(({ product: p }) =>
-                  `${p.name} ${p.brand} ${p.barcode}`
-                    .toLocaleLowerCase('es')
-                    .includes(search.toLocaleLowerCase('es')),
-                )
-                .map(({ product: p }) => (
-                  <option key={p.id} value={p.id}>
-                    {p.brand} · {p.name} · {p.size ?? '?'} {p.unit}
-                  </option>
-                ))}
-            </Select>
-            <Button onClick={add} disabled={!productId}>
-              <Plus size={16} />
-              Agregar
-            </Button>
           </Card>
           {drafts.length > 0 && (
             <Card className="form-card">

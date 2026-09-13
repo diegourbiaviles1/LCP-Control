@@ -66,6 +66,10 @@ export async function optimizeProductImage(file: File): Promise<Blob> {
     const blob = await new Promise<Blob | null>((resolve) =>
       canvas.toBlob(resolve, 'image/webp', 0.85),
     )
+    if (blob && blob.type !== 'image/webp')
+      throw new Error(
+        'Este navegador no pudo convertir la foto a WebP. Usa un navegador actualizado.',
+      )
     if (!blob || blob.size > 5 * 1024 * 1024)
       throw new Error(
         'La imagen es demasiado grande. Elige una de menor tamaño.',

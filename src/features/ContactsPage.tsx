@@ -1,3 +1,10 @@
+import { Users, Truck, Plus, Phone, Mail, MapPin, Pencil } from 'lucide-react'
+import {
+  WorkspaceHeading,
+  WorkspaceEmpty,
+} from '../components/WorkspacePresentation'
+import { priceTierLabels } from '../lib/pricing'
+import type { PriceTier } from '../lib/domain'
 import { useCallback, useState, type FormEvent } from 'react'
 import {
   Button,
@@ -43,6 +50,7 @@ export function ContactsPage({ kind }: { kind: 'customers' | 'suppliers' }) {
   const { data, loading, error, retry } = useQuery(load)
   const [form, setForm] = useState<ContactRecord | null>(null)
   const [search, setSearch] = useState('')
+  const [status, setStatus] = useState('active')
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
   if (!permitted && !demo)
@@ -72,25 +80,55 @@ export function ContactsPage({ kind }: { kind: 'customers' | 'suppliers' }) {
   }
   const editable =
     !demo && can(role, supplier ? 'supplier.manage' : 'customer.manage')
+  const visible = (data ?? []).filter(
+    (r) =>
+      (status === 'all' || r.active === (status === 'active')) &&
+      `${r.name} ${r.phone} ${r.email}`
+        .toLocaleLowerCase('es')
+        .includes(search.toLocaleLowerCase('es')),
+  )
   return (
     <>
-      <div className="page-heading">
-        <div>
-          <h1>{supplier ? 'Proveedores' : 'Clientes'}</h1>
-          <p className="muted">Datos compartidos con el personal autorizado.</p>
-        </div>
+      <WorkspaceHeading
+        eyebrow="RELACIONES DEL NEGOCIO"
+        title={supplier ? 'Proveedores' : 'Clientes'}
+        description={
+          supplier
+            ? 'Contactos, marcas y acuerdos, siempre a la mano.'
+            : 'Conoce a tus clientes y ten sus datos listos para cada venta.'
+        }
+        icon={supplier ? Truck : Users}
+      >
         {editable && (
           <Button onClick={() => setForm({ ...empty })}>
+            <Plus size={17} />
             Nuevo {supplier ? 'proveedor' : 'cliente'}
           </Button>
         )}
-      </div>
-      {message && <p role="status">{message}</p>}
+      </WorkspaceHeading>
+      {message && (
+        <p role="status" className="workspace-feedback">
+          {message}
+        </p>
+      )}
       {loading && <LoadingState />}
       {error && <ErrorState message={error} retry={retry} />}
       {form && (
-        <Card className="form-card">
-          <h2>{form.id ? 'Editar datos' : 'Registrar datos'}</h2>
+        <Card className="form-card record-form">
+          <div className="section-heading">
+            <div>
+              <span className="section-kicker">
+                {form.id ? 'ACTUALIZAR CONTACTO' : 'NUEVO CONTACTO'}
+              </span>
+              <h2>
+                {form.id
+                  ? 'Editar datos'
+                  : supplier
+                    ? 'Registrar proveedor'
+                    : 'Registrar cliente'}
+              </h2>
+            </div>
+          </div>
           <form onSubmit={submit}>
             <div className="form-grid">
               {(
@@ -162,45 +200,113 @@ export function ContactsPage({ kind }: { kind: 'customers' | 'suppliers' }) {
           </form>
         </Card>
       )}
-      <Input
-        label="Buscar"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-      />
-      <div className="supplier-grid">
-        {data
-          ?.filter((r) =>
-            `${r.name} ${r.phone}`.toLowerCase().includes(search.toLowerCase()),
-          )
-          .map((r) => (
-            <Card key={r.id}>
-              <h2>{r.name}</h2>
-              <p>
-                {r.phone || 'Sin teléfono'} ·{' '}
+      <div className="directory-toolbar">
+        <Input
+          label="Buscar"
+          type="search"
+          placeholder={
+            supplier
+              ? 'Nombre, correo o teléfono del proveedor'
+              : 'Nombre, correo o teléfono del cliente'
+          }
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+        <Select
+          label="Mostrar"
+          value={status}
+          onChange={(e) => setStatus(e.target.value)}
+        >
+          <option value="active">Activos</option>
+          <option value="all">Todos</option>
+          <option value="archived">Archivados</option>
+        </Select>
+        <span className="directory-count">
+          {visible.length} {supplier ? 'proveedores' : 'clientes'}
+        </span>
+      </div>
+      <div className="record-grid">
+        {visible.map((r) => (
+          <Card key={r.id} className="record-card contact-card">
+            <div className="record-card-top">
+              <span className="record-avatar">
+                {r.name.trim().slice(0, 2).toLocaleUpperCase('es')}
+              </span>
+              <span className={`record-badge ${r.active ? '' : 'is-muted'}`}>
                 {r.active ? 'Activo' : 'Archivado'}
+              </span>
+            </div>
+            <h2>{r.name}</h2>
+            {!supplier && (
+              <span className="contact-tier">
+                Lista {priceTierLabels[r.priceTier as PriceTier] ?? r.priceTier}
+              </span>
+            )}
+            <div className="contact-details">
+              <p>
+                <Phone size={14} />
+                {r.phone || 'Sin teléfono'}
               </p>
-              <p>{r.email}</p>
-              <p>{r.address}</p>
-              {r.taxId && <p>RUC: {r.taxId}</p>}
-              {supplier && (
-                <>
-                  <p>{r.contact}</p>
-                  <p>{r.brands}</p>
-                  <p>{r.terms}</p>
-                </>
+              {r.email && (
+                <p>
+                  <Mail size={14} />
+                  {r.email}
+                </p>
               )}
-              {!supplier && <p>Lista: {r.priceTier}</p>}
-              <p>{r.notes}</p>
-              {editable && (
-                <Button variant="secondary" onClick={() => setForm(r)}>
+              {r.address && (
+                <p>
+                  <MapPin size={14} />
+                  {r.address}
+                </p>
+              )}
+            </div>
+            {(r.taxId || r.contact || r.brands || r.terms || r.notes) && (
+              <dl className="record-details">
+                {[
+                  ['RUC', r.taxId],
+                  ['Contacto', r.contact],
+                  ['Marcas', r.brands],
+                  ['Condiciones', r.terms],
+                  ['Notas', r.notes],
+                ]
+                  .filter(([, v]) => v)
+                  .map(([label, value]) => (
+                    <div key={label}>
+                      <dt>{label}</dt>
+                      <dd>{value}</dd>
+                    </div>
+                  ))}
+              </dl>
+            )}
+            {editable && (
+              <div className="record-card-footer">
+                <Button variant="ghost" onClick={() => setForm(r)}>
+                  <Pencil size={14} />
                   Editar
                 </Button>
-              )}
-            </Card>
-          ))}
+              </div>
+            )}
+          </Card>
+        ))}
       </div>
-      {data?.length === 0 && (
-        <p>No hay {supplier ? 'proveedores' : 'clientes'} registrados.</p>
+      {!loading && !error && visible.length === 0 && (
+        <WorkspaceEmpty
+          icon={supplier ? Truck : Users}
+          title={
+            data?.length
+              ? 'Sin coincidencias'
+              : supplier
+                ? 'Tus proveedores, en un solo lugar'
+                : 'Aquí empieza la relación con tus clientes'
+          }
+          description={
+            data?.length
+              ? 'Prueba otra búsqueda o cambia el estado seleccionado.'
+              : supplier
+                ? 'Registra tu primer proveedor para guardar sus contactos y condiciones.'
+                : 'Registra tu primer cliente y selecciónalo al preparar una factura o proforma.'
+          }
+        />
       )}
     </>
   )

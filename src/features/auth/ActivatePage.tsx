@@ -43,7 +43,7 @@ export function ActivatePage() {
     }
   }
   return (
-    <main className="main-content">
+    <main className="main-content activation-page">
       <Card className="form-card">
         <Brand wordmark />
         <h1>Activar mi cuenta</h1>

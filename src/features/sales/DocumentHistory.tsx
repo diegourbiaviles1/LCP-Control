@@ -1,3 +1,8 @@
+import { FileText, Plus, ArrowUpRight } from 'lucide-react'
+import {
+  WorkspaceHeading,
+  WorkspaceEmpty,
+} from '../../components/WorkspacePresentation'
 import { useCallback, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useServices } from '../../services/useServices'
@@ -29,22 +34,37 @@ export function DocumentHistory({ kind }: { kind: DocumentKind }) {
   return (
     <>
       <div className="no-print">
-        <h1>{kind === 'invoice' ? 'Facturas' : 'Proformas'} emitidas</h1>
-        <p>
-          Últimos 200 documentos disponibles para tu cuenta. Conservan los
-          precios y datos con los que se emitieron.
-        </p>
-        <Link to={`${base}/${kind === 'invoice' ? 'sales' : 'proformas'}`}>
-          Crear {kind === 'invoice' ? 'factura' : 'proforma'}
-        </Link>
-        <Input
-          label="Buscar por número o cliente"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+        <WorkspaceHeading
+          eyebrow="ARCHIVO DEL NEGOCIO"
+          title={
+            kind === 'invoice' ? 'Facturas emitidas' : 'Proformas emitidas'
+          }
+          description="Consulta tus documentos y vuelve a imprimirlos cuando lo necesites."
+          icon={FileText}
+        >
+          <Link
+            className="button button-primary"
+            to={`${base}/${kind === 'invoice' ? 'sales' : 'proformas'}`}
+          >
+            <Plus size={17} />
+            Crear {kind === 'invoice' ? 'factura' : 'proforma'}
+          </Link>
+        </WorkspaceHeading>
+        <div className="directory-toolbar">
+          <Input
+            label="Buscar por número o cliente"
+            type="search"
+            placeholder="Escribe un nombre o número de documento…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          <span className="directory-count">
+            {data?.length ?? 0} documentos recientes
+          </span>
+        </div>
         {loading && <LoadingState />}
         {error && <ErrorState message={error} retry={retry} />}
-        <div className="supplier-grid">
+        <div className="record-grid">
           {data
             ?.filter((d) =>
               `${d.number} ${d.customerName}`
@@ -52,19 +72,47 @@ export function DocumentHistory({ kind }: { kind: DocumentKind }) {
                 .includes(search.toLowerCase()),
             )
             .map((d) => (
-              <Card key={d.id}>
+              <Card key={d.id} className="record-card">
+                <div className="record-card-top">
+                  <span className="record-avatar">
+                    <FileText size={22} />
+                  </span>
+                  <span className="record-badge is-muted">{d.currency}</span>
+                </div>
                 <h2>{d.number}</h2>
                 <p>
                   {d.customerName} · {formatDate(d.createdAt)}
                 </p>
-                <p>{formatCurrency(d.total, d.currency)}</p>
+                <strong className="document-record-total">
+                  {formatCurrency(d.total, d.currency)}
+                </strong>
                 <Button variant="secondary" onClick={() => setSelected(d)}>
-                  Ver documento
+                  Ver documento <ArrowUpRight size={16} />
                 </Button>
               </Card>
             ))}
         </div>
-        {data?.length === 0 && <p>No hay documentos emitidos.</p>}
+        {!loading &&
+          !error &&
+          !(data ?? []).some((d) =>
+            `${d.number} ${d.customerName}`
+              .toLowerCase()
+              .includes(search.toLowerCase()),
+          ) && (
+            <WorkspaceEmpty
+              icon={FileText}
+              title={
+                search
+                  ? 'No encontramos ese documento'
+                  : 'Tu archivo está listo'
+              }
+              description={
+                search
+                  ? 'Prueba con otro nombre o número.'
+                  : 'Los documentos que emitas aparecerán aquí con su detalle y su PDF.'
+              }
+            />
+          )}
         {selected && (
           <div className="form-actions">
             <Button onClick={() => window.print()}>Imprimir en carta</Button>

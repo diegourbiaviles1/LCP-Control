@@ -1,8 +1,18 @@
+import {
+  ArrowDownLeft,
+  ArrowUpRight,
+  ClipboardList,
+  TriangleAlert,
+} from 'lucide-react'
+import {
+  WorkspaceHeading,
+  WorkspaceEmpty,
+} from '../../components/WorkspacePresentation'
 import { useCallback } from 'react'
 import { useAccess } from '../../app/AccessContext'
 import { useQuery } from '../../lib/useQuery'
 import { listMovements } from '../../services/workspace'
-import { Card, ErrorState, LoadingState } from '../../components/ui'
+import { ErrorState, LoadingState } from '../../components/ui'
 import { formatDate } from '../../lib/format'
 export function MovementHistory() {
   const { demo } = useAccess()
@@ -13,40 +23,64 @@ export function MovementHistory() {
   const { data, error, loading, retry } = useQuery(load)
   return (
     <>
-      <h1>Historial de inventario</h1>
-      <p>
-        Entradas, salidas, daños, ajustes y ventas. Se muestran los últimos 200
-        movimientos permitidos para tu cuenta.
-      </p>
+      <WorkspaceHeading
+        eyebrow="CONTROL DE EXISTENCIAS"
+        title="Movimientos de inventario"
+        description="Cada entrada, salida y ajuste, con su motivo y fecha."
+        icon={ClipboardList}
+      />
       {loading && <LoadingState />}
       {error && <ErrorState message={error} retry={retry} />}
-      <div className="supplier-grid">
-        {data?.map((r) => (
-          <Card key={r.id}>
-            <h2>
-              {{
-                ENTRY: 'Entrada',
-                EXIT: 'Salida',
-                DAMAGED: 'Dañado',
-                ADJUSTMENT: 'Ajuste',
-                SALE: 'Venta',
-              }[r.type as string] ?? r.type}
-            </h2>
-            <p>
-              {(Array.isArray(r.products) ? r.products[0] : r.products)?.name ??
-                'Producto'}{' '}
-              · {(Array.isArray(r.products) ? r.products[0] : r.products)?.sku}
-            </p>
-            <p>
-              {r.before_quantity ?? 'Sin contar'} → {r.after_quantity} unidades
-              · {r.location === 'store' ? 'Tienda' : 'Bodega'}
-            </p>
-            <p>{r.note}</p>
-            <small>{formatDate(r.created_at)}</small>
-          </Card>
-        ))}
+      <div className="movement-list">
+        {data?.map((r) => {
+          const product = Array.isArray(r.products) ? r.products[0] : r.products
+          const Icon =
+            r.type === 'ENTRY'
+              ? ArrowDownLeft
+              : r.type === 'DAMAGED'
+                ? TriangleAlert
+                : r.type === 'ADJUSTMENT'
+                  ? ClipboardList
+                  : ArrowUpRight
+          return (
+            <article className="movement-record" key={r.id}>
+              <span className="record-avatar">
+                <Icon size={21} />
+              </span>
+              <div>
+                <h2>{product?.name ?? 'Producto'}</h2>
+                <p>
+                  {product?.sku} ·{' '}
+                  {r.location === 'store' ? 'Tienda' : 'Bodega'} ·{' '}
+                  {formatDate(r.created_at)}
+                </p>
+                <p>{r.note}</p>
+              </div>
+              <div className="movement-quantity">
+                <strong>
+                  {r.before_quantity ?? '—'} → {r.after_quantity}
+                </strong>
+                <span className="record-badge is-muted">
+                  {{
+                    ENTRY: 'Entrada',
+                    EXIT: 'Salida',
+                    DAMAGED: 'Dañado',
+                    ADJUSTMENT: 'Ajuste',
+                    SALE: 'Venta',
+                  }[r.type] ?? r.type}
+                </span>
+              </div>
+            </article>
+          )
+        })}
       </div>
-      {data?.length === 0 && <p>No hay movimientos registrados.</p>}
+      {!loading && !error && data?.length === 0 && (
+        <WorkspaceEmpty
+          icon={ClipboardList}
+          title="Cada movimiento cuenta"
+          description="Las entradas, salidas, daños y conteos aparecerán aquí cuando los registres en Inventario."
+        />
+      )}
     </>
   )
 }

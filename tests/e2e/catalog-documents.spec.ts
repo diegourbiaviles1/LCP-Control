@@ -22,6 +22,8 @@ test('product editor exposes all fields and photo replacement without real write
     'src',
     /^blob:/,
   )
+  await expect(page.locator('.optimized-photo-note')).toContainText('WebP')
+  await expect(page.locator('.optimized-photo-note')).toContainText('KB')
   expect(
     await page
       .locator('.editor-photo img')

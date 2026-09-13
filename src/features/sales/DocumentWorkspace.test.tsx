@@ -64,11 +64,9 @@ async function prepare(demo = false) {
     </MemoryRouter>,
   )
   await user.type(await screen.findByLabelText('Cliente'), 'Cliente de prueba')
-  await user.selectOptions(
-    screen.getByLabelText('Producto para la factura'),
-    'demo-0001',
+  await user.click(
+    screen.getByRole('button', { name: /^Agregar Aurora Norte Cedro 01/ }),
   )
-  await user.click(screen.getByRole('button', { name: 'Agregar' }))
   return user
 }
 it('reintenta con el mismo ID y muestra el precio confirmado, bloqueando la edición', async () => {
