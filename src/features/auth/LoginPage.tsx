@@ -93,15 +93,19 @@ export function LoginPage() {
             <ArrowRight size={18} />
           </Button>
         </form>
-        {!authConfigured && (
-          <Feedback>
-            Puedes consultar el catálogo y preparar borradores sin iniciar
-            sesión.
-          </Feedback>
+        {import.meta.env.DEV && (
+          <>
+            {!authConfigured && (
+              <Feedback>
+                Puedes consultar el catálogo de prueba y preparar borradores
+                sin iniciar sesión.
+              </Feedback>
+            )}
+            <Link className="demo-link" to="/demo">
+              Abrir vista local <ArrowRight size={16} />
+            </Link>
+          </>
         )}
-        <Link className="demo-link" to="/demo">
-          Abrir vista local <ArrowRight size={16} />
-        </Link>
         <p className="login-note">
           <ShieldCheck size={16} /> Acceso privado. Solicita tu cuenta al
           administrador.

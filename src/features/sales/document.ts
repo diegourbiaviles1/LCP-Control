@@ -1,0 +1,102 @@
+import { z } from 'zod'
+import { lineCents } from '../../lib/pricing'
+import type {
+  Currency,
+  DocumentKind,
+  DocumentRecord,
+  PriceTier,
+} from '../../lib/domain'
+const money = z.number().finite().min(0).max(10000000)
+const pair = z.object({ NIO: money, USD: money })
+export const draftLineSchema = z.object({
+  productId: z.string(),
+  name: z.string(),
+  barcode: z.string(),
+  size: z.string(),
+  quantity: z.number().int().min(1).max(9999),
+  prices: z.object({ emprendedor: pair, vip: pair, premium: pair }),
+})
+// One schema, one discriminating field. A draft always knows whether it is an
+// invoice or a proforma, so a proforma can never be reopened as an invoice.
+export const documentDraftSchema = z.object({
+  id: z.string(),
+  kind: z.enum(['invoice', 'proforma']),
+  reference: z.string(),
+  customer: z.string().max(200),
+  customerId: z.string().nullable().default(null),
+  phone: z.string().max(40).default(''),
+  taxId: z.string().max(100),
+  currency: z.enum(['NIO', 'USD']),
+  tier: z.enum(['emprendedor', 'vip', 'premium']),
+  payment: z.enum(['pending', 'cash', 'card_pos', 'bank_transfer']),
+  location: z.enum(['warehouse', 'store']),
+  validUntil: z.string().max(10).default(''),
+  notes: z.string().max(1500),
+  createdAt: z.string(),
+  lines: z.array(draftLineSchema).min(1),
+})
+export type DocumentDraft = z.infer<typeof documentDraftSchema>
+export type DraftLine = z.infer<typeof draftLineSchema>
+export function draftTotal(
+  lines: DraftLine[],
+  tier: PriceTier,
+  currency: Currency,
+) {
+  const total = lines.reduce(
+    (sum, line) => sum + lineCents(line.prices[tier][currency], line.quantity),
+    0,
+  )
+  if (!Number.isSafeInteger(total))
+    throw new Error('El importe es demasiado grande.')
+  return total / 100
+}
+export function draftStorageKey(kind: DocumentKind) {
+  return `lcp.drafts.${kind}.v2`
+}
+export const PROFORMA_VALID_DAYS = 7
+export function defaultValidUntil(from: Date = new Date()) {
+  const date = new Date(from)
+  date.setDate(date.getDate() + PROFORMA_VALID_DAYS)
+  return isoDate(date)
+}
+export function isoDate(date: Date) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Managua',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date)
+}
+/** Lets the screen preview and share a draft with exactly the same code paths
+ * that render a document already stored in PostgreSQL. */
+export function draftPreview(
+  draft: DocumentDraft,
+  issuer: DocumentRecord['issuer'],
+): DocumentRecord {
+  return {
+    id: draft.id,
+    kind: draft.kind,
+    number: draft.reference,
+    customerId: draft.customerId ?? '',
+    customerName: draft.customer || 'Cliente por indicar',
+    customerPhone: draft.phone || null,
+    issuer,
+    tier: draft.tier,
+    currency: draft.currency,
+    total: draftTotal(draft.lines, draft.tier, draft.currency),
+    location: draft.kind === 'invoice' ? draft.location : null,
+    validUntil: draft.kind === 'proforma' ? draft.validUntil || null : null,
+    paymentMethod: draft.kind === 'invoice' ? draft.payment : null,
+    notes: draft.notes,
+    createdAt: draft.createdAt,
+    items: draft.lines.map((line) => ({
+      id: line.productId,
+      productId: line.productId,
+      description: `${line.name} · ${line.size}`,
+      quantity: line.quantity,
+      unitPrice: line.prices[draft.tier][draft.currency],
+      lineTotal:
+        lineCents(line.prices[draft.tier][draft.currency], line.quantity) / 100,
+    })),
+  }
+}

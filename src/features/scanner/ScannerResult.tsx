@@ -20,7 +20,8 @@ import { labels } from '../../lib/domain'
 import { can, type Capability } from '../../lib/permissions'
 import { formatCurrency } from '../../lib/format'
 import { useAccess } from '../../app/AccessContext'
-import { inventoryService } from '../../services'
+import { useServices } from '../../services/useServices'
+import { InventoryMovements } from '../inventory/InventoryMovements'
 import { useQuery } from '../../lib/useQuery'
 import { ProductCard } from '../inventory/ProductCard'
 const actions: {
@@ -42,7 +43,8 @@ const actions: {
   { title: 'Ajuste', capability: 'inventory.adjust', icon: SlidersHorizontal },
 ]
 export function ScannerResult({ product }: { product: Product }) {
-  const { role } = useAccess()
+  const { role, demo } = useAccess()
+  const { inventoryService } = useServices()
   const { data, loading, error, retry } = useQuery(
     inventoryService.getInventory,
   )
@@ -71,43 +73,50 @@ export function ScannerResult({ product }: { product: Product }) {
       ) : (
         <p>No se encontraron existencias para este producto.</p>
       )}
-      <h3>Continuar con una acción</h3>
-      <p className="muted">
-        Vista previa del flujo. No modifica el inventario.
-      </p>
-      <div className="scan-actions">
-        {actions
-          .filter((action) => can(role, action.capability))
-          .map(({ title, icon: Icon }) => (
-            <Button
-              key={title}
-              variant="secondary"
-              onClick={() => setAction(title)}
-            >
-              <Icon size={19} />
-              {title}
-            </Button>
-          ))}
-      </div>
-      {role === 'operator' && (
-        <small>
-          Los movimientos preparados quedan pendientes de registrar.
-        </small>
+      {!demo && item && (
+        <InventoryMovements items={[item]} onRecorded={retry} />
       )}
-      <Dialog
-        open={!!action}
-        title={`${action} de inventario`}
-        onClose={() => setAction('')}
-      >
-        <p>
-          <strong>{product.name}</strong> · {product.barcode}
-        </p>
-        <p>
-          Puedes preparar este movimiento desde Inventario. Se guardará como
-          pendiente, sin cambiar las existencias.
-        </p>
-        <Button onClick={() => setAction('')}>Entendido</Button>
-      </Dialog>
+      {demo && (
+        <>
+          <h3>Continuar con una acción</h3>
+          <p className="muted">
+            Vista previa del flujo. No modifica el inventario.
+          </p>
+          <div className="scan-actions">
+            {actions
+              .filter((action) => can(role, action.capability))
+              .map(({ title, icon: Icon }) => (
+                <Button
+                  key={title}
+                  variant="secondary"
+                  onClick={() => setAction(title)}
+                >
+                  <Icon size={19} />
+                  {title}
+                </Button>
+              ))}
+          </div>
+          {role === 'operator' && (
+            <small>
+              Los movimientos preparados quedan pendientes de registrar.
+            </small>
+          )}
+          <Dialog
+            open={!!action}
+            title={`${action} de inventario`}
+            onClose={() => setAction('')}
+          >
+            <p>
+              <strong>{product.name}</strong> · {product.barcode}
+            </p>
+            <p>
+              Puedes preparar este movimiento desde Inventario. Se guardará como
+              pendiente, sin cambiar las existencias.
+            </p>
+            <Button onClick={() => setAction('')}>Entendido</Button>
+          </Dialog>
+        </>
+      )}
     </Card>
   )
 }

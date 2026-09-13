@@ -9,9 +9,10 @@ import {
 } from '../../components/ui'
 import { createHtml5Adapter } from './html5Adapter'
 import { ScannerSession, type ScanState } from './ScannerSession'
-import { productService } from '../../services'
+import { useServices } from '../../services/useServices'
 import { ScannerResult, UnknownProduct } from './ScannerResult'
 export function ScannerPage() {
+  const { productService } = useServices()
   const id = useId().replaceAll(':', '')
   const elementId = `camera-${id}`
   const controller = useRef<ScannerSession | null>(null)
@@ -31,7 +32,7 @@ export function ScannerPage() {
       void session.cancel()
       controller.current = null
     }
-  }, [elementId])
+  }, [elementId, productService])
   async function cancel() {
     await controller.current?.cancel()
     setState({ status: 'idle' })

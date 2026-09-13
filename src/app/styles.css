@@ -1795,3 +1795,16 @@ th:last-child {
 .login-feature {
   border-color: #814047;
 }
+/* Fieldsets lock editable document/movement controls while requests run. */
+.form-fields,
+fieldset.invoice-editor {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+.form-fields {
+  display: grid;
+  gap: 1rem;
+}

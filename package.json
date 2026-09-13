@@ -8,6 +8,8 @@
   },
   "scripts": {
     "dev": "vite --host 127.0.0.1",
+    "clean": "node scripts/clean.mjs",
+    "check": "npm run lint && npm test && npm run build",
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b",
     "lint": "eslint .",
@@ -21,6 +23,7 @@
     "@supabase/supabase-js": "2.116.0",
     "html5-qrcode": "2.3.8",
     "jsbarcode": "3.12.3",
+    "jspdf": "4.2.1",
     "lucide-react": "1.42.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",

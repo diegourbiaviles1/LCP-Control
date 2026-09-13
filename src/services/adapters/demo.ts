@@ -1,5 +1,6 @@
 import type { InventoryItem, Product } from '../../lib/domain'
 import type { DataProvider } from '../contracts'
+import { localWrites } from './local'
 // Generic fixtures only; no business records and no mutable stock endpoint.
 const specifications = [
   ['A', 'arabian', 'unisex', 18, 12, 10, 1250],
@@ -46,4 +47,5 @@ export const demoAdapter: DataProvider = {
   async getTodaySummary() {
     return { count: 0, totals: { NIO: 0, USD: 0 } }
   },
+  ...localWrites,
 }

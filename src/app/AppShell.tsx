@@ -5,6 +5,7 @@ import {
   Package,
   ScanLine,
   ShoppingBag,
+  FileText,
   Layers3,
   Bell,
   LogOut,
@@ -22,6 +23,7 @@ const links = [
   ['/inventory', 'Inventario', Package],
   ['/scanner', 'Escanear', ScanLine],
   ['/sales', 'Facturación', ShoppingBag],
+  ['/proformas', 'Proformas', FileText],
   ['/products', 'Catálogo', Layers3],
   ['/alerts', 'Alertas', Bell],
   ['/suppliers', 'Proveedores', Truck],
@@ -55,7 +57,14 @@ export function AppShell({ demo = false }: { demo?: boolean }) {
   }
   const role = demo ? 'operator' : (user?.role ?? null)
   return (
-    <AccessContext.Provider value={{ demo, base, role }}>
+    <AccessContext.Provider
+      value={{
+        demo,
+        base,
+        role,
+        storageScope: demo ? 'demo' : `user:${user?.id ?? 'anonymous'}`,
+      }}
+    >
       <a className="skip-link" href="#main">
         Saltar al contenido
       </a>
@@ -160,7 +169,7 @@ export function AppShell({ demo = false }: { demo?: boolean }) {
             </div>
           )}
           <main id="main" className="main-content">
-            <Outlet />
+            <Outlet key={`${demo ? 'demo' : user?.id}:${role}`} />
           </main>
           <footer className="workspace-footer">
             La Casa del Perfume<span>Managua, Nicaragua</span>

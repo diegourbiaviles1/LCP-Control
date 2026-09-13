@@ -1,37 +1,41 @@
 import { test, expect } from '@playwright/test'
 test.beforeEach(async ({ page }) => {
-  await page.route('https://drive.google.com/**', (route) => route.abort())
+  // El entorno de pruebas no habla con servicios reales: cualquier petición que
+  // salga del servidor local se corta.
+  await page.route(
+    (url) => url.protocol.startsWith('http') && url.hostname !== '127.0.0.1',
+    (route) => route.abort(),
+  )
 })
 test('catalog categories, variant filters, unavailable photos and internal barcode', async ({
   page,
 }, info) => {
   await page.goto('/demo/products')
   await page.getByLabel('Categoría', { exact: true }).selectOption('niche')
-  await expect(page.getByText('1 de 260 productos')).toBeVisible()
+  await expect(page.getByText('5 de 30 productos')).toBeVisible()
   await page.getByRole('button', { name: 'Limpiar filtros' }).click()
-  await page.getByLabel('Marca', { exact: true }).selectOption('Rasasi')
-  await expect(page.getByText('16 de 260 productos')).toBeVisible()
-  await page.getByLabel('Buscar producto').fill('Hawas black')
+  await expect(page.getByText('30 de 30 productos')).toBeVisible()
+  await page.getByLabel('Marca', { exact: true }).selectOption('Aurora Norte')
+  await expect(page.getByText('5 de 30 productos')).toBeVisible()
+  await page.getByLabel('Buscar producto').fill('Cedro 01')
   await page.getByLabel('Moneda', { exact: true }).selectOption('USD')
   await page.getByLabel('Lista de precios').selectOption('premium')
-  await expect(page.locator('.catalog-price')).toContainText('30.00')
+  await expect(page.locator('.catalog-price')).toContainText('22.00')
   await expect(page.getByText('Foto no disponible')).toBeVisible()
-  await page
-    .getByRole('button', { name: 'Ver Hawas black', exact: true })
-    .click()
+  await page.getByRole('button', { name: 'Ver Cedro 01', exact: true }).click()
   await expect(page.getByRole('dialog')).toContainText(
     'Código de fabricante: pendiente de registrar',
   )
   await expect(
-    page.getByRole('img', { name: 'Código interno LCP-B106BB7E6C' }),
+    page.getByRole('img', { name: 'Código interno DEMO-0001' }),
   ).toBeVisible()
   const download = page.waitForEvent('download')
   await page.getByRole('button', { name: 'Descargar etiqueta' }).click()
-  expect((await download).suggestedFilename()).toBe('LCP-B106BB7E6C.svg')
+  expect((await download).suggestedFilename()).toBe('DEMO-0001.svg')
   await page.getByRole('button', { name: 'Cerrar', exact: true }).click()
   await page.getByRole('button', { name: 'Limpiar filtros' }).click()
   await page.getByLabel('Tamaño', { exact: true }).selectOption('unknown')
-  await expect(page.getByText('4 de 260 productos')).toBeVisible()
+  await expect(page.getByText('6 de 30 productos')).toBeVisible()
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= innerWidth,
@@ -42,26 +46,26 @@ test('catalog categories, variant filters, unavailable photos and internal barco
     fullPage: true,
   })
 })
-test('invoice recalculates every tier and currency, saves and reopens a draft', async ({
+test('the invoice screen recalculates every tier and currency, saves and reopens a draft', async ({
   page,
 }, info) => {
   await page.goto('/demo/sales')
   await page.getByLabel('Cliente', { exact: true }).fill('Cliente de prueba')
-  await page.getByLabel('Producto para facturar').selectOption('lcp-b106bb7e6c')
-  await page.getByRole('button', { name: 'Agregar al borrador' }).click()
-  await page.getByLabel('Cantidad de Rasasi Hawas black').fill('3')
-  await expect(page.locator('.invoice-total')).toContainText('3,885.00')
+  await page.getByLabel('Producto para la factura').selectOption('demo-0001')
+  await page.getByRole('button', { name: 'Agregar', exact: true }).click()
+  await page.getByLabel('Cantidad de Aurora Norte Cedro 01').fill('3')
+  await expect(page.locator('.invoice-total')).toContainText('3,000.00')
   await page.getByLabel('Moneda', { exact: true }).selectOption('USD')
-  await expect(page.locator('.invoice-total')).toContainText('105.00')
+  await expect(page.locator('.invoice-total')).toContainText('75.00')
   await page.getByLabel('Lista de precios').selectOption('premium')
-  await expect(page.locator('.invoice-total')).toContainText('90.00')
+  await expect(page.locator('.invoice-total')).toContainText('66.00')
   await page.getByLabel('Moneda', { exact: true }).selectOption('NIO')
-  await expect(page.locator('.invoice-total')).toContainText('3,330.00')
-  await page.getByLabel('Cantidad de Rasasi Hawas black').fill('0')
+  await expect(page.locator('.invoice-total')).toContainText('2,700.00')
+  await page.getByLabel('Cantidad de Aurora Norte Cedro 01').fill('0')
   await expect(
     page.getByRole('button', { name: 'Guardar borrador' }),
   ).toBeDisabled()
-  await page.getByLabel('Cantidad de Rasasi Hawas black').fill('3')
+  await page.getByLabel('Cantidad de Aurora Norte Cedro 01').fill('3')
   await page.getByRole('button', { name: 'Guardar borrador' }).click()
   await expect(page.getByRole('status')).toContainText('Borrador guardado')
   await page.reload()
@@ -69,7 +73,7 @@ test('invoice recalculates every tier and currency, saves and reopens a draft', 
   await expect(page.getByLabel('Cliente', { exact: true })).toHaveValue(
     'Cliente de prueba',
   )
-  await expect(page.locator('.invoice-total')).toContainText('3,330.00')
+  await expect(page.locator('.invoice-total')).toContainText('2,700.00')
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= innerWidth,
@@ -88,6 +92,53 @@ test('invoice recalculates every tier and currency, saves and reopens a draft', 
     path: `test-results/invoice-print-${info.project.name}.png`,
     fullPage: true,
   })
+})
+test('proformas are a separate screen and never share drafts with invoices', async ({
+  page,
+}, info) => {
+  await page.goto('/demo/sales')
+  await page.getByLabel('Cliente', { exact: true }).fill('Cliente de factura')
+  await page.getByLabel('Producto para la factura').selectOption('demo-0001')
+  await page.getByRole('button', { name: 'Agregar', exact: true }).click()
+  await page.getByRole('button', { name: 'Guardar borrador' }).click()
+  await expect(page.getByRole('status')).toContainText('Borrador guardado')
+  await page.goto('/demo/proformas')
+  await expect(
+    page.getByRole('heading', { name: 'Proformas', exact: true }),
+  ).toBeVisible()
+  await expect(page.locator('.invoice-heading strong')).toContainText(
+    'PROFORMA',
+  )
+  await expect(page.locator('.invoice-notice')).toContainText('cotización')
+  // El borrador de factura no aparece aquí: cada tipo guarda por separado.
+  await expect(page.locator('.saved-drafts button')).toHaveCount(0)
+  await expect(page.getByLabel('Válida hasta')).toBeVisible()
+  await expect(page.getByLabel('Forma de pago')).toHaveCount(0)
+  await page.getByLabel('Cliente', { exact: true }).fill('Cliente de proforma')
+  await page.getByLabel('WhatsApp del cliente').fill('5555 0100')
+  await page.getByLabel('Producto para la proforma').selectOption('demo-0001')
+  await page.getByRole('button', { name: 'Agregar', exact: true }).click()
+  await expect(page.locator('.invoice-total')).toContainText('1,000.00')
+  await expect(
+    page.getByRole('button', { name: 'Enviar por WhatsApp' }),
+  ).toBeEnabled()
+  await expect(
+    page.getByRole('button', { name: 'Compartir PDF' }),
+  ).toBeEnabled()
+  await page.getByRole('button', { name: 'Guardar borrador' }).click()
+  await expect(page.getByRole('status')).toContainText('Borrador guardado')
+  await page.screenshot({
+    path: `test-results/proforma-${info.project.name}.png`,
+    fullPage: true,
+  })
+  // De vuelta en Facturación sólo está el borrador de factura, con su sello.
+  await page.goto('/demo/sales')
+  await expect(page.locator('.saved-drafts button')).toHaveCount(1)
+  await page.locator('.saved-drafts button').click()
+  await expect(page.getByLabel('Cliente', { exact: true })).toHaveValue(
+    'Cliente de factura',
+  )
+  await expect(page.locator('.invoice-heading strong')).toContainText('FACTURA')
 })
 test('supplier registration and edits survive refresh', async ({
   page,
@@ -128,9 +179,7 @@ test('entry, exit and damage are pending drafts and never change stock', async (
   await page.goto('/demo/inventory')
   for (const title of ['Entrada', 'Salida', 'Dañado']) {
     await page.getByRole('button', { name: title, exact: true }).click()
-    await page
-      .getByLabel('Producto del movimiento')
-      .selectOption('lcp-b106bb7e6c')
+    await page.getByLabel('Producto del movimiento').selectOption('demo-0001')
     await page.getByLabel('Cantidad', { exact: true }).fill('2')
     await page
       .getByLabel(
@@ -148,7 +197,7 @@ test('entry, exit and damage are pending drafts and never change stock', async (
     page.getByRole('heading', { name: 'Movimientos pendientes (3)' }),
   ).toBeVisible()
   await page.getByLabel('Existencias', { exact: true }).selectOption('unknown')
-  await expect(page.getByText('260 de 260 productos')).toBeVisible()
+  await expect(page.getByText('30 de 30 productos')).toBeVisible()
 })
 test('a new visit rotates the reflection without consuming two entries in StrictMode', async ({
   page,

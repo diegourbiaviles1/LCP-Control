@@ -834,3 +834,54 @@ textarea {
     display: block;
   }
 }
+
+/* Facturas y proformas comparten el diseño del papel; el color y el sello
+   distinguen de un vistazo cuál está en pantalla. */
+.doc-proforma {
+  --wine: #8a6318;
+}
+.doc-proforma .invoice-paper {
+  border-left: 4px solid var(--color-gold, #c4a05a);
+}
+.doc-proforma .invoice-heading strong,
+.doc-invoice .invoice-heading strong {
+  font-size: 12px;
+}
+.doc-proforma .page-heading h1 {
+  color: #8a6318;
+}
+.whatsapp-actions {
+  border-top: 1px solid var(--line);
+  padding-top: 16px;
+}
+.button-whatsapp {
+  background: #1f8a4c;
+  border-color: #1f8a4c;
+  color: #fff;
+}
+.button-whatsapp:hover {
+  background: #176d3c;
+  border-color: #176d3c;
+}
+.button-whatsapp-outline {
+  background: transparent;
+  border: 1px solid #1f8a4c;
+  color: #1f8a4c;
+}
+.button-whatsapp-outline:hover {
+  background: rgba(31, 138, 76, 0.08);
+}
+.button-whatsapp:disabled,
+.button-whatsapp-outline:disabled {
+  opacity: 0.5;
+}
+.whatsapp-hint {
+  color: var(--muted);
+  font-size: 11px;
+  margin-top: 10px;
+}
+@media print {
+  .doc-proforma .invoice-paper {
+    border-left: 0;
+  }
+}

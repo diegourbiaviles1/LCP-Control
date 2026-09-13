@@ -4,6 +4,7 @@ export class AppError extends Error {
       | 'network'
       | 'validation'
       | 'unauthorized'
+      | 'rate_limited'
       | 'configuration'
       | 'unexpected',
     message: string,

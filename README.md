@@ -1,70 +1,73 @@
 # La Casa del Perfume
 
-Aplicación local para consultar el catálogo mayorista y preparar el trabajo de la tienda. React, TypeScript y Vite. Esta versión no conecta una base de datos ni registra ventas o movimientos definitivos.
+Aplicación de inventario, facturación y proformas con React, TypeScript, Vite y Supabase.
 
 ## Abrir la aplicación
 
-Node 22.12 o superior y npm:
+Requiere Node 22.12 o superior y npm. Desde la carpeta del proyecto:
 
 ```sh
 npm ci
 npm run dev
 ```
 
-Abrir **http://localhost:5173/demo**. No requiere cuenta de Supabase. Mantener el servidor encendido mientras se usa la aplicación. `localhost` corresponde al equipo donde se abre el enlace.
+Abrir **http://127.0.0.1:5173/login**. Para trabajar con datos reales, configurar `.env.local` según `.env.example` y disponer de una cuenta activa en `staff_members`. Las instrucciones de la base están en [docs/database.md](docs/database.md).
 
-## Pantallas disponibles
+**http://127.0.0.1:5173/demo** permite explorar 30 productos inventados, con códigos `DEMO-0001` a `DEMO-0030`. Esta vista existe únicamente en desarrollo y pruebas. Siempre usa datos sintéticos, incluso si `.env.local` configura una base real. Permite preparar borradores; no emite documentos ni modifica existencias.
 
-- **Inicio:** logos originales de la tienda, resumen del catálogo y 48 reflexiones de ánimo y fe. Cada visita elige una nueva, sin repetir hasta recorrer la colección; el historial se conserva en el navegador. Son reflexiones originales, sin atribuciones a santos ni citas bíblicas literales.
-- **Catálogo:** 260 referencias y 38 marcas, con búsqueda, filtros por categoría (Árabe, Diseñador, Nicho y Por confirmar), marca, género y tamaño; 24 productos por página. Tres tarifas de mayor: Emprendedor, VIP y Premium. Selector NIO/USD que toma el precio original de cada lista, sin convertir importes.
-- **Ficha de producto:** foto enlazada desde Google Drive, enlace original y etiqueta CODE128 descargable. Los códigos `LCP-…` son internos y únicos por referencia. El EAN/UPC del fabricante está pendiente; no aparece en los Excel.
-- **Facturación:** agregar productos y cantidades, datos del cliente, forma de pago y notas; cambiar tarifa o moneda, guardar y reabrir borradores e imprimirlos con el logo. Los precios de las tres tarifas se conservan dentro del borrador. No emite una factura fiscal, no calcula impuestos y no modifica existencias.
-- **Inventario:** cantidades por Bodega/Tienda pendientes (`—`, no cero); formularios de Entrada, Salida y Dañado que guardan movimientos pendientes. Los movimientos no actualizan saldos. UNDS en los Excel es un campo de pedido, no un inventario inicial.
-- **Proveedores:** registro y edición de empresa, contacto, teléfono, correo, RUC, dirección, marcas, condiciones y notas; búsqueda por empresa, persona o marca.
-- **Escáner:** cámara y búsqueda manual de códigos internos. Por ejemplo `LCP-B106BB7E6C` corresponde a Rasasi Hawas black. La cámara requiere HTTPS o localhost y permiso del navegador; se libera al detenerla o salir de la pantalla.
-- **Alertas:** quedan pendientes hasta contar con cantidades y mínimos reales.
+Mantener el servidor encendido mientras se utiliza la aplicación. Usar siempre el mismo origen: `localhost` y `127.0.0.1` tienen sesiones y almacenamiento local independientes. Los servidores de desarrollo y preview escuchan solamente en este equipo.
 
-Los borradores y proveedores se guardan con `localStorage`. Pertenecen al navegador y origen utilizados: `localhost` y `127.0.0.1` tienen almacenamientos diferentes. No se sincronizan entre equipos o perfiles ni constituyen un registro operativo. Borrar los datos del sitio también borra estos registros locales. No se envían datos de clientes o proveedores a servicios externos.
+## Flujos disponibles
 
-## Fuentes y datos pendientes
+- **Catálogo e inventario:** búsqueda y filtros, precios por lista y moneda, fotos y etiquetas CODE128. El código interno procede de `products.sku`; el EAN/UPC del fabricante, si existe, se conserva por separado. Ambos sirven para buscar productos activos.
+- **Movimientos reales:** Entrada y Ajuste para administradores; Salida y Dañado también para operadores. Ajuste establece el saldo total de una ubicación y admite cero. Un producto sin contar requiere primero un ajuste. La confirmación llama a la función transaccional de la base y actualiza la vista.
+- **Escáner:** búsqueda manual y cámara, con acciones de inventario sobre el producto encontrado. Requiere localhost o HTTPS y permiso de cámara. La cámara se libera al detenerla o salir.
+- **Facturación:** emite `FAC-…` con cliente, teléfono, forma de pago y ubicación; descuenta inventario al confirmarse en la base. No es un comprobante fiscal y no calcula impuestos.
+- **Proformas:** emite `PRO-…` con vigencia; no cobra ni modifica inventario. Tiene borradores separados de las facturas.
+- **Documentos emitidos:** muestran los renglones e importes confirmados por la base, quedan bloqueados para edición y pueden imprimirse o compartirse. Para preparar otro documento se usa Nueva factura/Nueva proforma. El RUC del formulario pertenece solo al borrador: el contrato actual de emisión no lo guarda.
+- **WhatsApp y PDF:** comparten un borrador identificado como tal o el documento emitido. WhatsApp abre el mensaje para revisión y envío manual. El PDF usa el menú de compartir cuando el navegador lo permite; en computadora se descarga.
+- **Proveedores:** registro local de contactos y condiciones; todavía no se sincroniza con la base. El alta de productos también sigue siendo una pantalla preparatoria, no un registro definitivo.
 
-Las tres listas Excel aportadas contienen el mismo catálogo y tres niveles de precio. Se importaron sin alterar los originales. El resultado está en `src/data/catalog.json`; el análisis y sus decisiones se detallan en [docs/discovery/catalog-import.md](docs/discovery/catalog-import.md).
+Los reintentos de emisión y movimientos con los mismos datos conservan el identificador de operación mientras el formulario sigue abierto. Los clics simultáneos comparten una sola solicitud. Si se pierde una respuesta, reintentar desde ese formulario. Cerrar, recargar o empezar otra operación crea una nueva solicitud: ante una emisión dudosa, comprobar el registro en la base antes de repetirla.
 
-Hay 258 enlaces a fotos de Google Drive y dos referencias sin enlace. Las fotos necesitan acceso al archivo externo. Si una no carga, la interfaz lo indica y permite abrir el enlace original. No se utiliza una API de pago ni se han descargado fotos de terceros al repositorio.
+## Almacenamiento y datos
 
-Cuatro tamaños parecen haberse convertido a fechas en Excel y quedan «Por confirmar». Se conservan las unidades originales en oz. El género se toma únicamente de términos explícitos del nombre; donde falta se indica «Por confirmar». La categoría es una clasificación inicial por marca que deberán revisar los dueños. No se deduce disponibilidad de una celda vacía ni se interpreta «Agotado» como conteo físico.
+Los registros reales viven en Supabase; los precios y existencias se validan allí. Las políticas de acceso exigen una cuenta activa del personal. La aplicación obtiene el rol de `staff_members`, no de metadatos editables del navegador.
 
-Para reconstruir la importación con los tres archivos originales en una carpeta, usando Python estándar:
+Borradores y proveedores locales se guardan por cuenta y por vista (`demo` o usuario). No se sincronizan entre equipos y se pierden al borrar los datos del sitio. Las claves antiguas sin cuenta se conservan sin modificación, pero no se incorporan automáticamente a un usuario: hace falta identificar a quién pertenecen antes de recuperarlas.
 
-```sh
-python scripts/import_catalog.py RUTA_A_LA_CARPETA
-```
-
-El script verifica referencias únicas y su coincidencia entre las tres listas. Mantiene cada set y presentación por separado. Los archivos originales, datos de contactos y borradores locales no se versionan.
-
-## Autenticación existente
-
-El acceso privado continúa en `/login`. `/`, `/inventory`, `/scanner`, `/sales`, `/products`, `/alerts` y `/suppliers` requieren sesión y un rol válido. Sus equivalentes bajo `/demo` permiten revisar el catálogo y los formularios locales sin sesión. La vista local no concede permisos sobre datos remotos.
-
-La integración de Auth existente usa estas variables en `.env.local`, ignorado por Git:
-
-```env
-VITE_SUPABASE_URL=https://tu-proyecto.supabase.co
-VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
-VITE_DATA_MODE=demo
-```
-
-Solo se admiten claves públicas publishable. No usar `service_role` o claves secretas. Los roles se leen de `app_metadata.role` (`admin` / `operator`), nunca de `user_metadata`. Las futuras escrituras reales necesitarán autorización en PostgreSQL y RLS. Esta versión no crea tablas, migraciones ni cambios en un proyecto Supabase.
-
-## Comprobaciones
+El catálogo real no se incluye en `src/data/catalog.json` ni en la compilación. El importador genera un archivo privado:
 
 ```sh
-npm run build
-npm run lint
-npm test
+python scripts/import_catalog.py RUTA_A_LA_CARPETA_CON_LOS_EXCEL
+```
+
+La salida es `private-data/catalog.json`, ignorada por Git. Este script no carga los datos a Supabase por sí solo. El análisis de origen está en [docs/discovery/catalog-import.md](docs/discovery/catalog-import.md). Las fotos externas necesitan permiso de lectura; si no cargan se muestra una alternativa y el enlace original.
+
+## Comprobación y mantenimiento
+
+```sh
+npm run check
 npm run test:e2e
 ```
 
-Playwright usa Chrome instalado y prueba escritorio y móvil. Las pruebas funcionales cubren importación, moneda/tarifa, importes, rotación de frases, filtros, etiquetas, guardado y reapertura de borradores, edición de proveedores, movimientos pendientes y ciclo de vida de cámara. Los nuevos flujos prueban también la ausencia de fotos sin depender de la red externa. Capturas y trazas quedan en `test-results/` (ignorado).
+`check` ejecuta lint, pruebas unitarias/integración y compilación. Playwright utiliza Chrome instalado y prueba escritorio y móvil con un servidor propio en el puerto 5174 y credenciales vacías. El puerto debe estar libre. Las pruebas de interfaz no realizan operaciones contra la base real.
 
-La aceptación en cámaras físicas Android/iPhone y contra cuentas reales de Supabase sigue pendiente. Para publicar la aplicación en el futuro se necesita un hosting HTTPS con fallback SPA a `index.html`; subir el código a GitHub no ejecuta el servidor ni configura la base de datos.
+Para limpiar salidas generadas, detener antes las pruebas y el servidor de preview:
+
+```sh
+npm run clean
+```
+
+Elimina únicamente `dist`, `test-results`, `playwright-report`, `coverage` y la antigua caché `tsconfig.tsbuildinfo`. Conserva dependencias, fuentes, configuración, migraciones y datos. La caché actual de TypeScript está en `node_modules/.cache`.
+
+Para reconstruir y revisar la versión compilada:
+
+```sh
+npm run build
+npm run preview
+```
+
+Abrir la dirección indicada por preview. La compilación no incluye `/demo`; necesita configuración y una cuenta autorizada. Mantener `dist` mientras se use preview o se sirva esa carpeta. Para instalar en otra máquina, conservar `package-lock.json` y ejecutar `npm ci`.
+
+La publicación requiere un hosting HTTPS con fallback SPA a `index.html`. Las pruebas locales no sustituyen la aceptación con cuentas reales, conteos físicos ni cámaras de teléfonos. No se han emitido documentos ni alterado inventario real durante esta revisión.

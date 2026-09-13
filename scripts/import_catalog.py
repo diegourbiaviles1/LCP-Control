@@ -61,7 +61,8 @@ def build(source):
         image = record['imageSource']
         image_id = re.search(r'/d/([^/]+)', image).group(1) if image else None
         products.append({'id': sku.lower(), 'barcode': sku, 'barcodeKind': 'internal', 'manufacturerBarcode': None, 'name': name, 'brand': record['brand'], 'category': category, 'gender': gender, 'size': size, 'unit': 'oz', 'price': record['NIO'], 'currency': 'NIO', 'prices': {tier: {c: indexes[tier][key(record)][c] for c in ['NIO', 'USD']} for tier in FILES}, 'minimumStock': None, 'active': True, 'availabilityNote': 'Agotado en lista' if record['availability'].lower() == 'agotado' else 'Por confirmar', 'imageUrl': f'https://drive.google.com/thumbnail?id={image_id}&sz=w400' if image_id else None, 'imageSource': image, 'sourceRow': record['row'], 'sizeSource': raw})
-    target = ROOT/'src/data/catalog.json'; target.parent.mkdir(exist_ok=True)
+    # Real price lists never go into src/ or Git: the app bundle and the public repository must not carry them.
+    target = ROOT/'private-data/catalog.json'; target.parent.mkdir(exist_ok=True)
     target.write_text(json.dumps(products, ensure_ascii=False, indent=2)+'\n', encoding='utf-8')
     report = f'''# Catálogo de las listas mayoristas
 

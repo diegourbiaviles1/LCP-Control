@@ -9,7 +9,7 @@ import {
 } from 'lucide-react'
 import { Card, ErrorState, LoadingState } from '../../components/ui'
 import { Brand } from '../../components/Brand'
-import { inventoryService } from '../../services'
+import { useServices } from '../../services/useServices'
 import { useQuery } from '../../lib/useQuery'
 import { formatDate } from '../../lib/format'
 import { useAccess } from '../../app/AccessContext'
@@ -36,6 +36,7 @@ const actions = [
   ],
 ] as const
 export function DashboardPage() {
+  const { inventoryService } = useServices()
   const { data, loading, error, retry } = useQuery(
     inventoryService.getInventory,
   )

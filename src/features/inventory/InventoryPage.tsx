@@ -14,7 +14,7 @@ import {
 import { PriceControls } from '../../components/PriceControls'
 import { ProductImage } from '../../components/ProductImage'
 import { ProductBarcode } from '../../components/ProductBarcode'
-import { inventoryService } from '../../services'
+import { useServices } from '../../services/useServices'
 import { useQuery } from '../../lib/useQuery'
 import {
   labels,
@@ -36,7 +36,9 @@ import {
 import { ProductCard, ProductIdentity, StockBadge } from './ProductCard'
 import { useAccess } from '../../app/AccessContext'
 import { MovementDrafts } from './MovementDrafts'
+import { InventoryMovements } from './InventoryMovements'
 export function InventoryPage({ catalog = false }: { catalog?: boolean }) {
+  const { inventoryService } = useServices()
   const { data, loading, error, retry } = useQuery(
     inventoryService.getInventory,
   )
@@ -45,7 +47,7 @@ export function InventoryPage({ catalog = false }: { catalog?: boolean }) {
   const [tier, setTier] = useState<PriceTier>('emprendedor')
   const [page, setPage] = useState(1)
   const [selected, setSelected] = useState<Product | null>(null)
-  const { base } = useAccess()
+  const { base, demo } = useAccess()
   const items = filterInventory(data ?? [], filters)
   const perPage = 24
   const pages = Math.max(1, Math.ceil(items.length / perPage))
@@ -81,7 +83,7 @@ export function InventoryPage({ catalog = false }: { catalog?: boolean }) {
           <p className="muted">
             {catalog
               ? 'Perfumes, presentaciones y listas de mayor.'
-              : 'Existencias por ubicación y movimientos pendientes.'}
+              : 'Existencias y movimientos por ubicación.'}
           </p>
         </div>
         <Link className="button button-primary" to={`${base}/scanner`}>
@@ -89,7 +91,12 @@ export function InventoryPage({ catalog = false }: { catalog?: boolean }) {
           Escanear producto
         </Link>
       </div>
-      {!catalog && <MovementDrafts items={data ?? []} />}
+      {!catalog &&
+        (demo ? (
+          <MovementDrafts items={data ?? []} />
+        ) : (
+          <InventoryMovements items={data ?? []} onRecorded={retry} />
+        ))}
       <Card>
         <div className="inventory-toolbar">
           <div className="catalog-toolbar-heading">

@@ -1,13 +1,16 @@
 import { useState } from 'react'
 import { z } from 'zod'
+import { useAccess } from '../app/AccessContext'
 // Browser-only drafts. Never used as authoritative stock, sales or authorization.
 export function useLocalDrafts<T>(key: string, schema: z.ZodType<T>) {
+  const { storageScope = 'demo' } = useAccess()
+  const storageKey = `${key}:${storageScope}`
   const [error, setError] = useState('')
   const [items, setItems] = useState<T[]>(() => {
     try {
       const parsed = z
         .array(schema)
-        .safeParse(JSON.parse(localStorage.getItem(key) ?? '[]'))
+        .safeParse(JSON.parse(localStorage.getItem(storageKey) ?? '[]'))
       return parsed.success ? parsed.data : []
     } catch {
       return []
@@ -20,7 +23,7 @@ export function useLocalDrafts<T>(key: string, schema: z.ZodType<T>) {
       return false
     }
     try {
-      localStorage.setItem(key, JSON.stringify(parsed.data))
+      localStorage.setItem(storageKey, JSON.stringify(parsed.data))
       setItems(parsed.data)
       setError('')
       return true

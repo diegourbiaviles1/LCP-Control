@@ -8,24 +8,34 @@ import {
   totalStock,
 } from '../features/inventory/model'
 import { lineCents } from './pricing'
-import { invoiceTotal, type InvoiceLine } from '../features/sales/invoice'
+import { draftTotal, type DraftLine } from '../features/sales/document'
 import { nextReflection, reflections } from '../features/dashboard/quotes'
-describe('catalog imported from the three price lists', () => {
-  it('keeps all 260 variants, unique internal identifiers and the source prices', () => {
-    expect(catalogProducts).toHaveLength(260)
-    expect(new Set(catalogProducts.map((p) => p.barcode)).size).toBe(260)
+describe('synthetic local catalog', () => {
+  it('keeps unique internal identifiers and a price for every tier and currency', () => {
+    expect(catalogProducts).toHaveLength(30)
+    expect(new Set(catalogProducts.map((p) => p.barcode)).size).toBe(30)
     expect(catalogProducts[0].prices).toEqual({
-      emprendedor: { NIO: 1295, USD: 35 },
-      vip: { NIO: 1221, USD: 33 },
-      premium: { NIO: 1110, USD: 30 },
+      emprendedor: { NIO: 1000, USD: 25 },
+      vip: { NIO: 950, USD: 24 },
+      premium: { NIO: 900, USD: 22 },
     })
     expect(
       catalogProducts.every(
         (p) => p.barcodeKind === 'internal' && p.manufacturerBarcode === null,
       ),
     ).toBe(true)
-    expect(catalogProducts.filter((p) => p.imageUrl)).toHaveLength(258)
-    expect(catalogProducts.filter((p) => p.size === null)).toHaveLength(4)
+    expect(catalogProducts.filter((p) => p.size === null)).toHaveLength(6)
+  })
+  it('carries no business records: invented codes and no external links', () => {
+    expect(catalogProducts.every((p) => /^DEMO-\d{4}$/.test(p.barcode))).toBe(
+      true,
+    )
+    expect(
+      catalogProducts.every(
+        (p) =>
+          !p.imageSource && (!p.imageUrl || p.imageUrl.startsWith('data:')),
+      ),
+    ).toBe(true)
   })
   it('does not turn unknown stock into zero or low-stock alerts', async () => {
     const items = await catalogAdapter.getInventory()
@@ -42,7 +52,7 @@ describe('catalog imported from the three price lists', () => {
     )
     expect(
       filterInventory(items, { ...emptyFilters, stock: 'unknown' }),
-    ).toHaveLength(260)
+    ).toHaveLength(30)
   })
   it('finds exact internal codes and combines brand, size and category filters', async () => {
     const first = catalogProducts[0]
@@ -57,15 +67,18 @@ describe('catalog imported from the three price lists', () => {
     const filtered = filterInventory(items, {
       ...emptyFilters,
       category: 'niche',
-      brand: 'Xerjoff',
+      brand: 'Taller Índigo',
       size: '3.4 oz',
     })
-    expect(filtered.map((i) => i.product.name)).toEqual(['Erba pura'])
+    expect(filtered.map((i) => i.product.name)).toEqual([
+      'Cedro 21',
+      'Jazmín 22',
+    ])
   })
 })
-describe('invoice arithmetic', () => {
+describe('document arithmetic', () => {
   const p = catalogProducts[0]
-  const lines: InvoiceLine[] = [
+  const lines: DraftLine[] = [
     {
       productId: p.id,
       name: p.name,
@@ -76,10 +89,10 @@ describe('invoice arithmetic', () => {
     },
   ]
   it('selects the quoted price for each currency and tier, preserving quantity', () => {
-    expect(invoiceTotal(lines, 'emprendedor', 'NIO')).toBe(3885)
-    expect(invoiceTotal(lines, 'emprendedor', 'USD')).toBe(105)
-    expect(invoiceTotal(lines, 'premium', 'USD')).toBe(90)
-    expect(invoiceTotal(lines, 'premium', 'NIO')).toBe(3330)
+    expect(draftTotal(lines, 'emprendedor', 'NIO')).toBe(3000)
+    expect(draftTotal(lines, 'emprendedor', 'USD')).toBe(75)
+    expect(draftTotal(lines, 'premium', 'USD')).toBe(66)
+    expect(draftTotal(lines, 'premium', 'NIO')).toBe(2700)
     expect(lines[0].quantity).toBe(3)
   })
   it('rounds at the cent and rejects invalid quantities', () => {

@@ -75,6 +75,73 @@ export interface Supplier {
   id: string
   name: string
 }
+export interface BusinessSettings {
+  name: string
+  address: string
+  phone: string
+}
+export interface CustomerRecord {
+  id: string
+  name: string
+  phone: string | null
+  priceTier: PriceTier
+}
+// Facturas descuentan inventario; las proformas sólo cotizan. El tipo nunca se
+// deduce del contenido: viaja explícito desde la pantalla hasta PostgreSQL.
+export type DocumentKind = 'invoice' | 'proforma'
+export interface DocumentItemRecord {
+  id: string
+  productId: string
+  description: string
+  quantity: number
+  unitPrice: number
+  lineTotal: number
+}
+export interface DocumentRecord {
+  id: string
+  kind: DocumentKind
+  number: string
+  customerId: string
+  customerName: string
+  customerPhone: string | null
+  issuer: BusinessSettings
+  tier: PriceTier
+  currency: Currency
+  total: number
+  location: InventoryLocation | null
+  validUntil: string | null
+  paymentMethod: PaymentMethod | 'pending' | null
+  notes: string
+  createdAt: string
+  items: DocumentItemRecord[]
+}
+export interface NewDocumentItem {
+  productId: string
+  quantity: number
+}
+export interface NewDocument {
+  requestId: string
+  kind: DocumentKind
+  customerId?: string | null
+  customerName?: string
+  customerPhone?: string | null
+  tier: PriceTier
+  currency: Currency
+  location?: InventoryLocation | null
+  paymentMethod?: PaymentMethod | 'pending' | null
+  validUntil?: string | null
+  notes: string
+  items: NewDocumentItem[]
+}
+export interface MovementRequest {
+  requestId: string
+  productId: string
+  location: InventoryLocation
+  type: 'ENTRY' | 'EXIT' | 'DAMAGED' | 'ADJUSTMENT'
+  quantity: number
+  reference?: string
+  note: string
+}
 export const labels = {
   category: {
     arabian: 'Árabe',
@@ -93,5 +160,39 @@ export const labels = {
     cash: 'Efectivo',
     card_pos: 'POS / Tarjeta',
     bank_transfer: 'Transferencia bancaria',
+  },
+  documentKind: { invoice: 'Factura', proforma: 'Proforma' },
+}
+export const documentCopy: Record<
+  DocumentKind,
+  {
+    title: string
+    singular: string
+    plural: string
+    stamp: string
+    prefix: string
+    subtitle: string
+    notice: string
+  }
+> = {
+  invoice: {
+    title: 'Facturación',
+    singular: 'factura',
+    plural: 'facturas',
+    stamp: 'FACTURA',
+    prefix: 'FAC-',
+    subtitle: 'Cobra y descuenta del inventario.',
+    notice:
+      'Al emitirla se descuentan las existencias de la ubicación elegida y queda registrada en el historial. No es un comprobante fiscal y no calcula impuestos.',
+  },
+  proforma: {
+    title: 'Proformas',
+    singular: 'proforma',
+    plural: 'proformas',
+    stamp: 'PROFORMA',
+    prefix: 'PRO-',
+    subtitle: 'Cotiza sin cobrar ni mover inventario.',
+    notice:
+      'Es una cotización con vigencia. No cobra, no descuenta existencias y no sustituye a una factura. Los precios rigen hasta la fecha de vigencia indicada.',
   },
 }
