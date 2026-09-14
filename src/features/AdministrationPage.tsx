@@ -323,9 +323,10 @@ export function BusinessPage() {
 }
 
 /**
- * La tasa vigente que el programa propone al facturar en dólares y al registrar
- * compras y gastos. No reescribe nada: cada operación conserva la tasa con la
- * que se registró, así que cambiarla aquí no mueve ninguna cifra del pasado.
+ * La tasa con la que se cotiza el catálogo. Los precios se fijan en dólares y
+ * los de córdobas salen de aquí, así que cambiarla vuelve a calcular la lista
+ * entera en córdobas. Lo ya emitido no se toca: cada factura, compra y gasto
+ * guarda la tasa del día en que se registró.
  */
 function ExchangeRateCard() {
   const { demo, role } = useAccess()
@@ -347,7 +348,9 @@ function ExchangeRateCard() {
     setMessage('')
     try {
       await settingsService.saveExchangeRate(Math.round(value * 1e6) / 1e6)
-      setMessage('Tipo de cambio actualizado.')
+      setMessage(
+        'Tipo de cambio actualizado. Los precios en córdobas del catálogo se recalcularon con la nueva tasa.',
+      )
       setRate('')
       retry()
     } catch (saveError) {
@@ -385,8 +388,8 @@ function ExchangeRateCard() {
               </>
             ) : (
               <span className="muted">
-                Todavía no hay una tasa registrada. Cada documento la pedirá por
-                separado.
+                Todavía no hay una tasa registrada. Sin ella no se puede fijar
+                el precio en córdobas de un perfume.
               </span>
             )}
           </p>
@@ -410,10 +413,17 @@ function ExchangeRateCard() {
               </div>
             </form>
           )}
+          {editable && (
+            <p className="exchange-rate-warning" role="note">
+              Cambiar la tasa recalcula el precio en córdobas de los perfumes
+              del catálogo. El precio en dólares que fijaste no se toca.
+            </p>
+          )}
           <p className="muted exchange-rate-note">
-            Se propone al facturar en dólares y al registrar compras y gastos.
-            Cada operación guarda la tasa con la que se registró, así que
-            cambiarla no altera nada de lo ya emitido.
+            El precio de cada perfume se fija en dólares y el de córdobas sale
+            de esta tasa. También se propone al facturar en dólares y al
+            registrar compras y gastos: cada operación guarda la tasa con la que
+            se registró, así que cambiarla no altera nada de lo ya emitido.
           </p>
           {message && (
             <p role="status" className="workspace-feedback">

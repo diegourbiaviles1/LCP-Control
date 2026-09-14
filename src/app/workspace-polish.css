@@ -541,6 +541,18 @@
   font-size: 13px;
   color: var(--muted);
 }
+/* Cambiar la tasa mueve la lista de precios entera: conviene saberlo antes de
+   escribir el número, no después de guardarlo. */
+.exchange-rate-warning {
+  margin-top: 14px;
+  padding: 12px 15px;
+  background: #fffaed;
+  border: 1px solid #e7d7ad;
+  border-radius: 8px;
+  color: #70521d;
+  font-size: 12px;
+  line-height: 1.6;
+}
 .exchange-rate-note {
   font-size: 12px;
   line-height: 1.7;

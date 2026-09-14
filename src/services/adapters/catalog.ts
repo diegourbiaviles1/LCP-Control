@@ -1,6 +1,6 @@
 import type { Category, Gender, InventoryItem, Product } from '../../lib/domain'
 import type { DataProvider } from '../contracts'
-import { localWrites } from './local'
+import { DEMO_EXCHANGE_RATE, localWrites } from './local'
 import {
   previousRange,
   type ReportRange,
@@ -24,13 +24,17 @@ const lines: [string, Gender, number | null][] = [
   ['Cítrico', 'unspecified', 1],
   ['Nocturno', 'male', null],
 ]
+const demoPrice = (dollars: number) => ({
+  USD: dollars,
+  NIO: Math.round(dollars * DEMO_EXCHANGE_RATE * 100) / 100,
+})
 export const catalogProducts: Product[] = brands.flatMap(
   ([brand, category], brandIndex) =>
     lines.map(([line, gender, size], lineIndex) => {
       const number = brandIndex * lines.length + lineIndex + 1
       const code = `DEMO-${String(number).padStart(4, '0')}`
-      const nio = 975 + number * 25
       const usd = 24 + number
+      const nio = demoPrice(usd).NIO
       return {
         id: code.toLowerCase(),
         barcode: code,
@@ -45,9 +49,9 @@ export const catalogProducts: Product[] = brands.flatMap(
         price: nio,
         currency: 'NIO',
         prices: {
-          emprendedor: { NIO: nio, USD: usd },
-          vip: { NIO: nio - 50, USD: usd - 1 },
-          premium: { NIO: nio - 100, USD: usd - 3 },
+          emprendedor: demoPrice(usd),
+          vip: demoPrice(usd - 1),
+          premium: demoPrice(usd - 3),
         },
         minimumStock: null,
         active: true,
@@ -108,7 +112,7 @@ export const catalogAdapter: DataProvider = {
       // sólo de las facturas que viajan con él.
       accounting: {
         ...sales.accounting,
-        purchases: sales.accounting.purchases.filter((row) =>
+        shipments: sales.accounting.shipments.filter((row) =>
           inRange(row.incurredOn),
         ),
         expenses: sales.accounting.expenses.filter((row) =>

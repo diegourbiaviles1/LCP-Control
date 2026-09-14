@@ -38,7 +38,7 @@ import type {
   PriceTier,
   NewDocument,
 } from '../../lib/domain'
-import { priceTierLabels } from '../../lib/pricing'
+import { equivalentAmount, priceTierLabels } from '../../lib/pricing'
 import {
   defaultValidUntil,
   documentDraftSchema,
@@ -138,17 +138,22 @@ export function DocumentWorkspace({ kind }: { kind: DocumentKind }) {
    * Motivo por el que una línea no puede facturarse, junto a su cantidad. Las
    * existencias se comprueban al emitir en PostgreSQL, que es la autoridad;
    * avisar aquí evita llegar al final del documento para descubrir que faltaba
-   * producto. Una ubicación sin conteo no se señala: eso lo resuelve un ajuste
-   * de inventario y la base lo explica con su propio mensaje.
+   * producto. Una ubicación sin conteo también se señala: la base rechazaría la
+   * factura con su propio mensaje y el vendedor perdería el documento entero.
    */
   function quantityIssue(line: DraftLine): string | undefined {
     if (!Number.isInteger(line.quantity) || line.quantity < 1)
       return 'Escribe una cantidad entera de 1 a 9999.'
     if (line.quantity > 9999) return 'El máximo por renglón es 9999.'
+    const item = data?.find((entry) => entry.product.id === line.productId)
+    if (!item || !item.product.active || !item.product.prices)
+      return 'Este producto ya no está disponible. Retíralo del documento.'
     if (kind !== 'invoice') return undefined
-    const available = data?.find((item) => item.product.id === line.productId)
-      ?.quantities[location]
-    return typeof available === 'number' && line.quantity > available
+    const available = item.quantities[location]
+    if (available == null)
+      return `Sin conteo en ${labels.location[location]}. Registra el inventario antes de facturar.`
+    if (available === 0) return `No hay existencias en ${labels.location[location]}.`
+    return line.quantity > available
       ? `Solo hay ${available} en ${labels.location[location]}.`
       : undefined
   }
@@ -178,7 +183,10 @@ export function DocumentWorkspace({ kind }: { kind: DocumentKind }) {
   // What is shared is always what is on screen: the issued document when it
   // exists, otherwise the draft rendered through the very same shape.
   const shareable: DocumentRecord | null =
-    issued ?? (draft && business ? draftPreview(draft, business) : null)
+    issued ??
+    (draft && business
+      ? draftPreview(draft, business, savedRate?.usdToNio ?? null)
+      : null)
 
   function add(productId: string) {
     const product = data?.find((item) => item.product.id === productId)?.product
@@ -257,7 +265,20 @@ export function DocumentWorkspace({ kind }: { kind: DocumentKind }) {
   }
 
   async function issue() {
-    if (!lines.length || !valid || !validTax || (kind === 'invoice' && !validExchange) || busy || issued || demo) return
+    // Las existencias también se comprueban aquí, no sólo al pintar el aviso:
+    // emitir con un renglón sin producto termina en un error de la base y el
+    // vendedor pierde el documento que ya tenía armado.
+    if (
+      !lines.length ||
+      !valid ||
+      !validTax ||
+      shortages > 0 ||
+      (kind === 'invoice' && !validExchange) ||
+      busy ||
+      issued ||
+      demo
+    )
+      return
     setBusy(true)
     setFailure('')
     setMessage('')
@@ -323,8 +344,23 @@ export function DocumentWorkspace({ kind }: { kind: DocumentKind }) {
     setLocation(item.location)
     setValidUntil(item.validUntil || defaultValidUntil())
     setNotes(item.notes)
-    setLines(structuredClone(item.lines))
-    setMessage('Borrador abierto. Guarda los cambios al terminar.')
+    let pricesChanged = false
+    const refreshedLines = item.lines.map((line) => {
+      const product = data?.find((entry) => entry.product.id === line.productId)?.product
+      if (!product?.active || !product.prices) return structuredClone(line)
+      const prices = structuredClone(product.prices)
+      if (Object.keys(priceTierLabels).some((key) => {
+        const priceTier = key as PriceTier
+        return prices[priceTier].NIO !== line.prices[priceTier].NIO ||
+          prices[priceTier].USD !== line.prices[priceTier].USD
+      })) pricesChanged = true
+      return { ...line, prices }
+    })
+    setLines(refreshedLines)
+    setFailure('')
+    setMessage(pricesChanged
+      ? 'Borrador abierto con los precios actuales del catálogo. Revisa el total antes de emitir y guarda los cambios.'
+      : 'Borrador abierto. Guarda los cambios al terminar.')
   }
 
   function clear() {
@@ -380,7 +416,29 @@ export function DocumentWorkspace({ kind }: { kind: DocumentKind }) {
   if (businessError)
     return <ErrorState message={businessError} retry={retryBusiness} />
   const ready = !!lines.length && valid && validTax
+  // Guardar un borrador o imprimirlo no toca el inventario; emitir sí, así que
+  // sólo la emisión exige que cada renglón tenga existencias suficientes.
+  const issuable =
+    ready && shortages === 0 && (kind !== 'invoice' || validExchange)
   const displayedTotal = issued?.total ?? total
+  /**
+   * El catálogo se cotiza en dólares y el precio en córdobas sale de la tasa
+   * vigente, así que el mismo total existe en las dos monedas. Enseñarlo antes
+   * de emitir evita la pregunta de siempre: «¿y eso cuánto es en dólares?».
+   * Un documento ya emitido usa la tasa con la que se cotizó, no la de hoy.
+   */
+  const displayedRate = issued
+    ? (issued.catalogRate ??
+      (issued.currency === 'USD' ? issued.exchangeRate : null))
+    : (savedRate?.usdToNio ?? null)
+  const equivalent =
+    displayedTotal === null
+      ? null
+      : equivalentAmount(
+          displayedTotal,
+          issued?.currency ?? currency,
+          displayedRate,
+        )
   const displayedTaxRate = issued ? issued.taxRate : taxRate
   const taxBreakdown = displayedTotal !== null && displayedTaxRate !== undefined && displayedTaxRate !== null && Number.isFinite(displayedTaxRate) ? includedTax(displayedTotal, displayedTaxRate) : null
   return (
@@ -732,6 +790,20 @@ export function DocumentWorkspace({ kind }: { kind: DocumentKind }) {
                   : formatCurrency(total, currency)}
             </strong>
           </div>
+          {equivalent && (
+            <p className="invoice-equivalent">
+              <span>
+                Equivale a{' '}
+                <strong>
+                  {formatCurrency(equivalent.amount, equivalent.currency)}
+                </strong>
+              </span>
+              <small>
+                A {displayedRate} C$ por dólar. Cambia la moneda arriba para
+                cobrar en {equivalent.currency === 'USD' ? 'dólares' : 'córdobas'}.
+              </small>
+            </p>
+          )}
           <label className="field no-print">
             <span>Notas</span>
             <textarea
@@ -747,14 +819,14 @@ export function DocumentWorkspace({ kind }: { kind: DocumentKind }) {
           {!issued && shortages > 0 && (
             <p className="inline-error no-print" role="status">
               {shortages === 1
-                ? 'Un renglón necesita revisión: mira el aviso bajo su cantidad.'
-                : `${shortages} renglones necesitan revisión: mira los avisos bajo sus cantidades.`}
+                ? 'No se puede emitir: un renglón necesita revisión, mira el aviso bajo su cantidad.'
+                : `No se puede emitir: ${shortages} renglones necesitan revisión, mira los avisos bajo sus cantidades.`}
             </p>
           )}
           <div className="form-actions no-print">
             <Button
               onClick={issue}
-              disabled={demo || !ready || (kind === 'invoice' && !validExchange) || busy || !!issued}
+              disabled={demo || !issuable || busy || !!issued}
             >
               <CircleCheckBig size={17} />
               {issued

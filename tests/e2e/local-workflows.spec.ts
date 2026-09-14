@@ -55,13 +55,14 @@ test('the invoice screen recalculates every tier and currency, saves and reopens
     .getByRole('button', { name: /^Agregar Aurora Norte Cedro 01/ })
     .click()
   await page.getByLabel('Cantidad de Aurora Norte Cedro 01').fill('3')
-  await expect(page.locator('.invoice-total')).toContainText('3,000.00')
+  // 25 USD por unidad, convertidos con la tasa de muestra de 36.6.
+  await expect(page.locator('.invoice-total')).toContainText('2,745.00')
   await page.getByLabel('Moneda', { exact: true }).selectOption('USD')
   await expect(page.locator('.invoice-total')).toContainText('75.00')
   await page.getByLabel('Lista de precios').selectOption('premium')
   await expect(page.locator('.invoice-total')).toContainText('66.00')
   await page.getByLabel('Moneda', { exact: true }).selectOption('NIO')
-  await expect(page.locator('.invoice-total')).toContainText('2,700.00')
+  await expect(page.locator('.invoice-total')).toContainText('2,415.60')
   await page.getByLabel('Cantidad de Aurora Norte Cedro 01').fill('0')
   await expect(
     page.getByRole('button', { name: 'Guardar borrador' }),
@@ -74,7 +75,7 @@ test('the invoice screen recalculates every tier and currency, saves and reopens
   await expect(page.getByLabel('Cliente', { exact: true })).toHaveValue(
     'Cliente de prueba',
   )
-  await expect(page.locator('.invoice-total')).toContainText('2,700.00')
+  await expect(page.locator('.invoice-total')).toContainText('2,415.60')
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= innerWidth,
@@ -121,7 +122,7 @@ test('proformas are a separate screen and never share drafts with invoices', asy
   await page
     .getByRole('button', { name: /^Agregar Aurora Norte Cedro 01/ })
     .click()
-  await expect(page.locator('.invoice-total')).toContainText('1,000.00')
+  await expect(page.locator('.invoice-total')).toContainText('915.00')
   await expect(
     page.getByRole('button', { name: 'Enviar por WhatsApp' }),
   ).toBeEnabled()

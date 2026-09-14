@@ -1,6 +1,6 @@
 import { jsPDF } from 'jspdf'
 import { formatCurrency, formatDate } from '../../lib/format'
-import { accountingByMonth, accountingSummary, belowCostSales, inventoryTurnover } from './accounting'
+import { accountingByMonth, accountingSummary, belowCostSales, expenseAccounts, inventoryTurnover } from './accounting'
 import { priceTierLabels } from '../../lib/pricing'
 import { reportTables, type ReportContext } from './export'
 
@@ -148,22 +148,29 @@ export async function renderReportPdf(context: ReportContext): Promise<Blob> {
       ['Ventas sin impuesto (parte documentada)', nio(accounting.revenueNio)],
       ['Costo de ventas conocido', nio(accounting.costOfSalesNio)],
       ['Utilidad bruta', nio(accounting.grossProfitNio)],
-      ['Gastos reconocidos', nio(accounting.expensesNio)],
+      ['Gastos reconocidos (los que restan)', nio(accounting.expensesNio)],
       ['Mermas y salidas a costo conocido', nio(accounting.inventoryWriteOffNio)],
       ['Resultado operativo registrado', nio(accounting.netProfitNio)],
     ])
-    heading('Compras, impuestos e inventario')
+    heading('Pedidos de importación e inventario')
     table([{ label: 'CONCEPTO', width: 362 }, { label: 'IMPORTE NIO', width: 170, align: 'right' }], [
-      ['Compras incorporadas al costo', nio(accounting.purchasesNio)],
+      ['Precio de los perfumes pedidos', nio(accounting.purchaseGoodsNio)],
+      ['Envío cobrado por la agencia (peso)', nio(accounting.purchaseShippingNio)],
+      ['Total invertido en pedidos', `${nio(accounting.purchasesNio)} · ${accounting.purchasedUnits} uds.`],
       ['Impuesto incluido en ventas documentadas', nio(accounting.salesTaxNio)],
-      ['Impuestos de compras / de gastos', `${nio(accounting.purchaseTaxNio)} / ${nio(accounting.expenseTaxNio)}`],
-      ['Impuestos recuperables registrados', nio(accounting.recoverableTaxNio)],
       ['Inventario actual a costo conocido', nio(accounting.inventoryCostNio)],
       ['Rotación anual del inventario', turnover.turnoverPerYear === null ? 'Sin determinar' : `${turnover.turnoverPerYear} veces`],
       ['Días que dura el inventario', turnover.daysOnHand === null ? 'Sin determinar' : `${turnover.daysOnHand} días`],
     ])
+    heading('Gastos por cuenta')
+    table([{ label: 'CUENTA', width: 362 }, { label: 'IMPORTE NIO', width: 170, align: 'right' }],
+      accounting.expenseByAccount.map((row) => [
+        expenseAccounts[row.account].label + (row.deducts ? '' : ' — no resta del resultado'),
+        nio(row.amountNio),
+      ]))
+    text('El pago de préstamos devuelve capital: lo que cuesta el préstamo son sus intereses. Los gastos operativos son los pedidos del periodo y pesan en el resultado al vender la mercadería.', left, (y += 14), 8)
     text(`${accounting.missingCostUnits} unidades vendidas sin costo; ${accounting.unvaluedProducts} productos sin valoración de inventario.`, left, (y += 14), 8)
-    text('Inventario actual. Impuestos recuperables separados. Compras descontadas al vender.', left, (y += 13), 8)
+    text('Inventario actual. Costo puesto = precio del proveedor + envío por unidad. Los pedidos se descuentan al vender.', left, (y += 13), 8)
     heading('Evolución del resultado operativo')
     table([
       { label: 'MES', width: 65 }, { label: 'VENTA NETA*', width: 112, align: 'right' },

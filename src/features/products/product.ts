@@ -11,7 +11,18 @@ const money = z
     (value) => Math.abs(value * 100 - Math.round(value * 100)) < 0.00001,
     'Usa hasta dos decimales.',
   )
-const pair = z.object({ NIO: money, USD: money })
+/**
+ * El dólar es el precio que se decide; el córdoba sale de multiplicarlo por la
+ * tasa vigente y nadie lo teclea. Se valida igual —viaja en el payload y se
+ * muestra en pantalla— pero su mensaje apunta a la tasa, que es lo que habría
+ * que arreglar si saliera mal, y no al campo, que no se puede escribir.
+ */
+const derived = z
+  .number({ error: 'Falta el tipo de cambio para calcular el precio en córdobas.' })
+  .finite('Falta el tipo de cambio para calcular el precio en córdobas.')
+  .positive('El precio en córdobas debe ser mayor que cero.')
+  .max(10000000, 'El precio en córdobas es demasiado alto.')
+const pair = z.object({ NIO: derived, USD: money })
 export const productInputSchema = z.object({
   id: z.uuid(),
   revision: z.number().int().min(0),
@@ -50,6 +61,12 @@ export const productInputSchema = z.object({
   prices: z.object({ emprendedor: pair, vip: pair, premium: pair }),
 })
 export type ProductInput = z.infer<typeof productInputSchema>
+/** Precio en córdobas del catálogo: el de dólares por la tasa vigente. */
+export function nioFromUsd(usd: number, rate: number | null): number {
+  if (rate === null || !Number.isFinite(rate) || rate <= 0 || !Number.isFinite(usd))
+    return NaN
+  return Math.max(Math.round(usd * rate * 100) / 100, 0.01)
+}
 export function productInput(product?: Product): ProductInput {
   return {
     id: product?.id ?? crypto.randomUUID(),

@@ -13,6 +13,7 @@ import {
 import { whatsappMessage, whatsappNumber, whatsappUrl } from './whatsapp'
 import { documentFileName } from './pdf'
 import { documentCopy } from '../../lib/domain'
+import { equivalentAmount } from '../../lib/pricing'
 
 // Datos inventados: ningún negocio, producto ni teléfono real.
 const issuer = {
@@ -119,6 +120,30 @@ describe('número de WhatsApp', () => {
   it('descarta lo que no sirve', () => {
     for (const value of [null, '', 'sin teléfono', '123'])
       expect(whatsappNumber(value)).toBeNull()
+  })
+})
+
+describe('equivalente en la otra moneda', () => {
+  it('convierte en las dos direcciones con la tasa del catálogo', () => {
+    // El catálogo se cotiza en dólares: 212 × 37 son los 7 844 córdobas que
+    // aparecen en la lista de precios, y la vuelta tiene que devolver lo mismo.
+    expect(equivalentAmount(212, 'USD', 37)).toEqual({
+      currency: 'NIO',
+      amount: 7844,
+    })
+    expect(equivalentAmount(7844, 'NIO', 37)).toEqual({
+      currency: 'USD',
+      amount: 212,
+    })
+  })
+  it('redondea al centavo', () => {
+    expect(equivalentAmount(100, 'NIO', 37)?.amount).toBe(2.7)
+    expect(equivalentAmount(33.33, 'USD', 36.6)?.amount).toBe(1219.88)
+  })
+  it('no inventa una conversión cuando falta la tasa', () => {
+    for (const rate of [null, undefined, 0, -1, NaN, Infinity])
+      expect(equivalentAmount(500, 'NIO', rate)).toBeNull()
+    expect(equivalentAmount(NaN, 'NIO', 37)).toBeNull()
   })
 })
 

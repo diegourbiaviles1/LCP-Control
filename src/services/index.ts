@@ -15,7 +15,7 @@ import type { ReportRange } from '../features/reports/model'
 import type {
   ExpenseInput,
   OpeningCostInput,
-  PurchaseInput,
+  ShipmentInput,
 } from '../features/reports/accounting'
 export function createServices(provider: DataProvider) {
   return {
@@ -54,7 +54,8 @@ export function createServices(provider: DataProvider) {
       getSource: (range: ReportRange) => provider.getReportSource(range),
     },
     accountingService: {
-      recordPurchase: (input: PurchaseInput) => provider.recordPurchase(input),
+      recordShipment: (input: ShipmentInput) =>
+        provider.recordShipment(input),
       setOpeningCost: (input: OpeningCostInput) =>
         provider.setOpeningCost(input),
       recordExpense: (input: ExpenseInput) => provider.recordExpense(input),

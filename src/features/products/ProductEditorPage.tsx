@@ -19,14 +19,15 @@ import {
   labels,
   type Product,
   type PriceTier,
-  type Currency,
 } from '../../lib/domain'
 import { priceTierLabels } from '../../lib/pricing'
 import {
+  nioFromUsd,
   optimizeProductImage,
   productInput,
   productInputSchema,
 } from './product'
+import { formatCurrency } from '../../lib/format'
 
 export function ProductEditorPage() {
   const { role, demo } = useAccess()
@@ -63,7 +64,11 @@ function ProductForm({
   const { base, demo } = useAccess()
   const navigate = useNavigate()
   const [params] = useSearchParams()
-  const { productService } = useServices()
+  const { productService, settingsService } = useServices()
+  // El precio en córdobas se calcula con esta tasa. Sin ella no se puede fijar
+  // un precio, así que el formulario lo dice y no deja guardar a ciegas.
+  const { data: savedRate } = useQuery(settingsService.getExchangeRate)
+  const rate = savedRate?.usdToNio ?? null
   const [value, setValue] = useState(() => ({
     ...productInput(product),
     manufacturerBarcode:
@@ -343,40 +348,63 @@ function ProductForm({
           <Card className="form-card product-prices">
             <h2>Listas de precios</h2>
             <p className="muted">
-              Cada moneda conserva su precio. No se aplica una conversión
-              automática.
+              El precio se fija en dólares. El de córdobas sale de la tasa
+              vigente
+              {rate === null ? '' : ` de ${rate} C$ por dólar`} y se recalcula
+              solo cuando el dueño cambia la tasa en Negocio.
             </p>
-            {(Object.keys(priceTierLabels) as PriceTier[]).map((tier) => (
-              <div className="product-price-row" key={tier}>
-                <h3>{priceTierLabels[tier]}</h3>
-                {(['NIO', 'USD'] as Currency[]).map((currency) => (
+            {rate === null && (
+              <p className="inline-error" role="alert">
+                Todavía no hay tipo de cambio registrado. Regístralo en Negocio
+                antes de fijar precios.
+              </p>
+            )}
+            {(Object.keys(priceTierLabels) as PriceTier[]).map((tier) => {
+              const nio = value.prices[tier].NIO
+              // Un dólar vacío ya deja su propio aviso en el campo; repetirlo
+              // bajo el córdoba sería marcar dos veces el mismo descuido.
+              const usdError = fieldErrors[`prices.${tier}.USD`]
+              const nioError = usdError
+                ? undefined
+                : fieldErrors[`prices.${tier}.NIO`]
+              return (
+                <div className="product-price-row" key={tier}>
+                  <h3>{priceTierLabels[tier]}</h3>
                   <Input
-                    key={currency}
-                    label={`${priceTierLabels[tier]} ${currency}`}
-                    error={fieldErrors[`prices.${tier}.${currency}`]}
+                    label={`${priceTierLabels[tier]} USD`}
+                    error={usdError}
                     type="number"
                     min={0.01}
                     max={10000000}
                     step={0.01}
                     required
                     value={
-                      Number.isNaN(value.prices[tier][currency])
+                      Number.isNaN(value.prices[tier].USD)
                         ? ''
-                        : value.prices[tier][currency]
+                        : value.prices[tier].USD
                     }
-                    onChange={(e) =>
+                    onChange={(e) => {
+                      const usd = e.target.valueAsNumber
                       update('prices', {
                         ...value.prices,
-                        [tier]: {
-                          ...value.prices[tier],
-                          [currency]: e.target.valueAsNumber,
-                        },
+                        [tier]: { USD: usd, NIO: nioFromUsd(usd, rate) },
                       })
-                    }
+                    }}
                   />
-                ))}
-              </div>
-            ))}
+                  <div
+                    className={`product-price-derived ${nioError ? 'field-invalid' : ''}`}
+                  >
+                    <span>{priceTierLabels[tier]} NIO</span>
+                    <strong>
+                      {Number.isNaN(nio) ? '—' : formatCurrency(nio, 'NIO')}
+                    </strong>
+                    <small className={nioError ? 'field-error' : undefined}>
+                      {nioError ?? 'Calculado con la tasa vigente'}
+                    </small>
+                  </div>
+                </div>
+              )
+            })}
           </Card>
         </fieldset>
         {error && (

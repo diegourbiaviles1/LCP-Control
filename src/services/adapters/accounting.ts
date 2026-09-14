@@ -6,8 +6,9 @@ import {
   type ExpenseInput,
   type ExpenseRecord,
   type OpeningCostInput,
-  type PurchaseInput,
-  type PurchaseRecord,
+  type ShipmentInput,
+  type ShipmentLine,
+  type ShipmentRecord,
 } from '../../features/reports/accounting'
 import { addDays, type ReportRange } from '../../features/reports/model'
 
@@ -70,25 +71,37 @@ function nullableNumeric(value: unknown): number | null {
 }
 type AccountingRow = Record<string, unknown>
 
-function toPurchase(row: AccountingRow): PurchaseRecord {
+function toShipmentLine(row: AccountingRow): ShipmentLine {
+  return {
+    id: row.id as string,
+    productId: row.product_id as string,
+    location: row.location as ShipmentLine['location'],
+    quantity: numeric(row.quantity),
+    unitPrice: numeric(row.unit_price),
+    goodsAmount: numeric(row.goods_amount),
+    shippingShare: numeric(row.shipping_share),
+    landedUnitCostNio: numeric(row.landed_unit_cost_nio),
+  }
+}
+function toShipment(row: AccountingRow): ShipmentRecord {
   return {
     id: row.id as string,
     requestId: row.request_id as string,
-    productId: row.product_id as string,
-    location: row.location as PurchaseInput['location'],
-    quantity: numeric(row.quantity),
-    unitPrice: numeric(row.unit_price),
-    freightAmount: numeric(row.freight_amount),
-    taxAmount: numeric(row.tax_amount),
-    recoverableTaxAmount: numeric(row.recoverable_tax_amount),
-    currency: row.currency as PurchaseInput['currency'],
-    exchangeRate: numeric(row.exchange_rate),
     incurredOn: row.incurred_on as string,
     supplier: row.supplier as string,
+    agency: row.agency as string,
     reference: row.reference as string,
     note: row.note as string,
+    currency: row.currency as ShipmentInput['currency'],
+    exchangeRate: numeric(row.exchange_rate),
+    shippingAmount: numeric(row.shipping_amount),
+    goodsAmount: numeric(row.goods_amount),
+    units: numeric(row.units),
+    shippingPerUnit: numeric(row.shipping_per_unit),
     createdAt: row.created_at as string,
-    landedUnitCostNio: numeric(row.landed_unit_cost_nio),
+    lines: ((row.purchase_shipment_lines ?? []) as AccountingRow[]).map(
+      toShipmentLine,
+    ),
   }
 }
 function toExpense(row: AccountingRow): ExpenseRecord {
@@ -99,8 +112,6 @@ function toExpense(row: AccountingRow): ExpenseRecord {
     category: row.category as ExpenseInput['category'],
     description: row.description as string,
     amount: numeric(row.amount),
-    taxAmount: numeric(row.tax_amount),
-    recoverableTaxAmount: numeric(row.recoverable_tax_amount),
     currency: row.currency as ExpenseInput['currency'],
     exchangeRate: numeric(row.exchange_rate),
     reference: row.reference as string,
@@ -132,8 +143,8 @@ export function createAccountingAdapter(
     return data
   }
   return {
-    recordPurchase: (input: PurchaseInput) =>
-      write('record_purchase', { p_input: input }),
+    recordShipment: (input: ShipmentInput) =>
+      write('record_shipment', { p_input: input }),
     setOpeningCost: (input: OpeningCostInput) =>
       write('set_opening_cost', { p_input: input }),
     recordExpense: (input: ExpenseInput) =>
@@ -175,9 +186,9 @@ export function createAccountingAdapter(
         ),
         readReportPages<AccountingRow>((start, end) =>
           client()
-            .from('purchase_records')
+            .from('purchase_shipments')
             .select(
-              'id,request_id,product_id,location,quantity,unit_price,freight_amount,tax_amount,recoverable_tax_amount,currency,exchange_rate,incurred_on,supplier,reference,note,created_at,landed_unit_cost_nio',
+              'id,request_id,incurred_on,supplier,agency,reference,note,currency,exchange_rate,shipping_amount,goods_amount,units,shipping_per_unit,created_at,purchase_shipment_lines(id,product_id,location,quantity,unit_price,goods_amount,shipping_share,landed_unit_cost_nio)',
               { count: 'exact' },
             )
             .gte('incurred_on', window.from)
@@ -190,7 +201,7 @@ export function createAccountingAdapter(
           client()
             .from('expense_records')
             .select(
-              'id,request_id,incurred_on,category,description,amount,tax_amount,recoverable_tax_amount,currency,exchange_rate,reference,created_at,voided_at,void_reason',
+              'id,request_id,incurred_on,category,description,amount,currency,exchange_rate,reference,created_at,voided_at,void_reason',
               { count: 'exact' },
             )
             .gte('incurred_on', window.from)
@@ -231,7 +242,7 @@ export function createAccountingAdapter(
       )
       if (unexpected) throw errorToApp(unexpected.reason)
       if (failures.length) return structuredClone(emptyAccounting)
-      const [costs, purchases, expenses, saleCosts, movementCosts] =
+      const [costs, shipments, expenses, saleCosts, movementCosts] =
         results.map((result) => {
           if (result.status === 'rejected') throw result.reason
           return result.value
@@ -243,7 +254,7 @@ export function createAccountingAdapter(
           averageCostNio: nullableNumeric(row.average_cost_nio),
           updatedAt: row.updated_at as string,
         })),
-        purchases: purchases.rows.map(toPurchase),
+        shipments: shipments.rows.map(toShipment),
         expenses: expenses.rows.map(toExpense),
         saleCosts: saleCosts.rows.map((row) => ({
           documentId: row.document_id as string,
@@ -261,7 +272,7 @@ export function createAccountingAdapter(
           unitCostNio: nullableNumeric(row.unit_cost_nio),
           createdAt: row.created_at as string,
         })),
-        truncated: [costs, purchases, expenses, saleCosts, movementCosts].some(
+        truncated: [costs, shipments, expenses, saleCosts, movementCosts].some(
           (result) => result.truncated,
         ),
       }

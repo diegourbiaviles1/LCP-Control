@@ -1,6 +1,6 @@
 import { beforeEach, expect, it, vi } from 'vitest'
 
-const { tables, requests, rpc, legacyDocuments } = vi.hoisted(() => ({
+const { tables, requests, rpc, legacyDocuments, filters } = vi.hoisted(() => ({
   tables: {} as Record<string, unknown[]>,
   requests: [] as {
     table: string
@@ -10,6 +10,7 @@ const { tables, requests, rpc, legacyDocuments } = vi.hoisted(() => ({
   }[],
   rpc: vi.fn(),
   legacyDocuments: { value: false },
+  filters: [] as { operator: string; column: string; value: unknown }[],
 }))
 vi.mock('../../lib/supabase', () => ({
   authConfigured: true,
@@ -47,9 +48,18 @@ vi.mock('../../lib/supabase', () => ({
           selection = value
           return chain
         },
-        eq: () => chain,
-        gte: () => chain,
-        lt: () => chain,
+        eq: (column: string, value: unknown) => {
+          filters.push({ operator: 'eq', column, value })
+          return chain
+        },
+        gte: (column: string, value: unknown) => {
+          filters.push({ operator: 'gte', column, value })
+          return chain
+        },
+        lt: (column: string, value: unknown) => {
+          filters.push({ operator: 'lt', column, value })
+          return chain
+        },
         lte: () => chain,
         order: () => chain,
         maybeSingle: async () => ({
@@ -97,8 +107,30 @@ const document = {
 beforeEach(() => {
   for (const name of Object.keys(tables)) delete tables[name]
   requests.length = 0
+  filters.length = 0
   legacyDocuments.value = false
   rpc.mockReset()
+})
+
+it('el resumen diario usa el día de Managua y suma todas las páginas sin truncar ventas', async () => {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(new Date('2026-09-15T03:00:00Z'))
+  try {
+    tables.documents = [
+      ...Array.from({ length: 1101 }, () => ({ currency: 'NIO', total: '10' })),
+      { currency: 'USD', total: '25' },
+    ]
+    expect(await supabaseAdapter.getTodaySummary()).toEqual({
+      count: 1102, totals: { NIO: 11010, USD: 25 },
+    })
+    expect(filters).toEqual(expect.arrayContaining([
+      { operator: 'eq', column: 'kind', value: 'invoice' },
+      { operator: 'gte', column: 'created_at', value: '2026-09-14T06:00:00.000Z' },
+      { operator: 'lt', column: 'created_at', value: '2026-09-15T06:00:00.000Z' },
+    ]))
+  } finally {
+    vi.useRealTimers()
+  }
 })
 
 it('loads report rows across server limits and includes archived stock and historical movement identity', async () => {

@@ -7,12 +7,17 @@ import type { Product } from '../../lib/domain'
 import type { ProductInput } from './product'
 import { ProductEditorPage } from './ProductEditorPage'
 
-const { productService, inventoryService } = vi.hoisted(() => ({
+const { productService, inventoryService, settingsService } = vi.hoisted(() => ({
   productService: { listProducts: vi.fn(), saveProduct: vi.fn() },
   inventoryService: { getInventory: vi.fn(), recordMovement: vi.fn() },
+  // El precio en córdobas sale de esta tasa: sin ella el editor no deja fijar
+  // precios, así que la prueba trabaja con una registrada.
+  settingsService: {
+    getExchangeRate: vi.fn(async () => ({ usdToNio: 37, updatedAt: null })),
+  },
 }))
 vi.mock('../../services/useServices', () => ({
-  useServices: () => ({ productService, inventoryService }),
+  useServices: () => ({ productService, inventoryService, settingsService }),
 }))
 
 it('reloads a newly saved perfume and opens its quantities without a page refresh', async () => {
@@ -57,16 +62,13 @@ it('reloads a newly saved perfume and opens its quantities without a page refres
     screen.getByLabelText('Marca', { exact: true }),
     'Marca nueva',
   )
-  for (const tier of ['Emprendedor', 'VIP', 'Premium'])
-    for (const currency of ['NIO', 'USD']) {
-      await user.clear(
-        screen.getByLabelText(`${tier} ${currency}`, { exact: true }),
-      )
-      await user.type(
-        screen.getByLabelText(`${tier} ${currency}`, { exact: true }),
-        '20',
-      )
-    }
+  // Sólo se teclea el dólar; el córdoba lo calcula la tasa.
+  for (const tier of ['Emprendedor', 'VIP', 'Premium']) {
+    await user.clear(screen.getByLabelText(`${tier} USD`, { exact: true }))
+    await user.type(screen.getByLabelText(`${tier} USD`, { exact: true }), '20')
+  }
+  // 20 × 37: las tres listas muestran su precio en córdobas ya calculado.
+  expect(screen.getAllByText(/740\.00/)).toHaveLength(3)
   await user.click(screen.getByRole('button', { name: 'Guardar perfume' }))
   await waitFor(() => expect(productService.saveProduct).toHaveBeenCalledOnce())
   await expect(
@@ -108,7 +110,7 @@ it('marks the fields that block the save instead of one generic notice', async (
   expect(
     screen.getByLabelText('Código del fabricante (EAN / UPC)'),
   ).toHaveAccessibleDescription(/8, 12, 13 o 14 dígitos/)
-  expect(screen.getByLabelText('Emprendedor NIO')).toHaveAttribute(
+  expect(screen.getByLabelText('Emprendedor USD')).toHaveAttribute(
     'aria-invalid',
     'true',
   )

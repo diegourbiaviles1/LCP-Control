@@ -1,11 +1,14 @@
 import { jsPDF } from 'jspdf'
 import { documentCopy, labels, type DocumentRecord } from '../../lib/domain'
 import { formatCurrency, formatDate } from '../../lib/format'
-import { priceTierLabels } from '../../lib/pricing'
+import { equivalentAmount, priceTierLabels } from '../../lib/pricing'
 import { includedTax } from './document'
 
 export function renderDocumentPdf(d: DocumentRecord, logo: Uint8Array): Blob {
   const tax = d.taxRate == null ? null : includedTax(d.total, d.taxRate)
+  // La tasa con la que se cotizó este documento, no la del dólar de hoy.
+  const rate = d.catalogRate ?? (d.currency === 'USD' ? d.exchangeRate : null)
+  const equivalent = equivalentAmount(d.total, d.currency, rate)
   const pdf = new jsPDF({ unit: 'pt', format: 'letter', compress: true })
   const accent: [number, number, number] =
     d.kind === 'invoice' ? [87, 23, 28] : [138, 99, 24]
@@ -178,6 +181,15 @@ export function renderDocumentPdf(d: DocumentRecord, logo: Uint8Array): Blob {
   pdf
     .setFontSize(15)
     .text(money(d.total), 564, summaryTop + 35 + totalOffset, { align: 'right' })
+  if (equivalent)
+    text(
+      `Equivale a ${formatCurrency(equivalent.amount, equivalent.currency).replace(/\s/g, ' ')} a ${rate} C$ por dólar`,
+      right,
+      summaryTop + 63 + totalOffset,
+      8,
+      false,
+      'right',
+    )
   const notes = wrap(
     d.notes || 'Gracias por elegir La Casa del Perfume.',
     294,
@@ -196,7 +208,7 @@ export function renderDocumentPdf(d: DocumentRecord, logo: Uint8Array): Blob {
       y += 17
     }
   }
-  y = Math.max(y + 15, summaryTop + 66 + totalOffset)
+  y = Math.max(y + 15, summaryTop + (equivalent ? 78 : 66) + totalOffset)
   if (d.kind === 'invoice' && d.location) {
     text(`Entrega desde: ${labels.location[d.location]}`, left, y, 8)
     y += 20

@@ -3,10 +3,13 @@
   --color-wine: #57171c;
   --color-gold: #c4a05a;
 }
+/* El color y el fondo son los de la identidad de la marca. Antes se declaraban
+   aquí en verde grisáceo y más abajo otra vez en crema: ganaba el segundo y el
+   primero sólo confundía a quien buscara de dónde sale el color de la página. */
 :root {
   font-family: Inter, 'Segoe UI', Arial, sans-serif;
-  color: #253d35;
-  background: #f7f8f6;
+  color: #342a29;
+  background: #faf8f5;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -1718,10 +1721,6 @@ th:last-child {
 }
 
 /* La Casa del Perfume: wine and gold accents on quiet operational surfaces. */
-:root {
-  color: #342a29;
-  background: #faf8f5;
-}
 .button-primary {
   background: #57171c;
   color: #fffaf3;
@@ -1876,8 +1875,10 @@ fieldset.invoice-editor {
   --chart-2: #c08a1e;
   --chart-3: #0f8a6a;
   --chart-4: #3576cc;
-  --chart-grid: #e6eae2;
-  --chart-track: #eef1ea;
+  /* Rejilla y canaleta son cromo, no dato: siguen el crema de la página en vez
+     del gris verdoso que traían, que se notaba contra el fondo de las tarjetas. */
+  --chart-grid: #e7ddd5;
+  --chart-track: #f0e9e3;
 }
 .chart {
   position: relative;

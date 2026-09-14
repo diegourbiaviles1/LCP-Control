@@ -14,6 +14,32 @@ export function productPrice(
     (product.currency === currency ? product.price : null)
   )
 }
+/**
+ * El equivalente del mismo importe en la otra moneda. El catálogo se cotiza en
+ * dólares y el precio en córdobas sale de la tasa vigente, así que convertir un
+ * total con esa misma tasa devuelve el precio que el cliente pagaría si pidiera
+ * cobrarse en la otra moneda —no una cifra aproximada—. Devuelve `null` cuando
+ * no hay tasa: es preferible no enseñar nada a enseñar una conversión inventada.
+ */
+export function equivalentAmount(
+  total: number,
+  currency: Currency,
+  rate: number | null | undefined,
+): { currency: Currency; amount: number } | null {
+  if (
+    rate == null ||
+    !Number.isFinite(rate) ||
+    rate <= 0 ||
+    !Number.isFinite(total)
+  )
+    return null
+  const value = currency === 'NIO' ? total / rate : total * rate
+  if (!Number.isFinite(value)) return null
+  return {
+    currency: currency === 'NIO' ? 'USD' : 'NIO',
+    amount: Math.round(value * 100) / 100,
+  }
+}
 export function lineCents(price: number, quantity: number) {
   if (
     !Number.isFinite(price) ||

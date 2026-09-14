@@ -14,7 +14,7 @@ import type { ReportRange, ReportSource } from '../features/reports/model'
 import type {
   ExpenseInput,
   OpeningCostInput,
-  PurchaseInput,
+  ShipmentInput,
 } from '../features/reports/accounting'
 export interface DataProvider {
   listProducts(): Promise<Product[]>
@@ -38,7 +38,7 @@ export interface DataProvider {
   recordMovement(input: MovementRequest): Promise<string>
   /** Filas crudas del periodo; los reportes se calculan sobre ellas. */
   getReportSource(range: ReportRange): Promise<ReportSource>
-  recordPurchase(input: PurchaseInput): Promise<string>
+  recordShipment(input: ShipmentInput): Promise<string>
   setOpeningCost(input: OpeningCostInput): Promise<string>
   recordExpense(input: ExpenseInput): Promise<string>
   voidExpense(id: string, reason: string): Promise<string>

@@ -17,6 +17,9 @@ export function exampleDocument(kind: DocumentKind): DocumentRecord {
     tier: 'emprendedor',
     currency: 'NIO',
     total: 5650,
+    // El catálogo se cotiza en dólares; el ejemplo enseña también cómo sale
+    // impreso el equivalente para un cliente que pide el cobro en dólares.
+    catalogRate: 37,
     location: kind === 'invoice' ? 'store' : null,
     paymentMethod: kind === 'invoice' ? 'cash' : null,
     validUntil: kind === 'proforma' ? '2026-09-20' : null,

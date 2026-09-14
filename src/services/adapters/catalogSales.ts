@@ -4,7 +4,7 @@ import type {
   AccountingSource,
   ExpenseCategory,
   ExpenseRecord,
-  PurchaseRecord,
+  ShipmentRecord,
   SaleCostSnapshot,
 } from '../../features/reports/accounting'
 import {
@@ -85,7 +85,7 @@ export function syntheticSales(today = localDay(new Date())): SyntheticSales {
   const documents: ReportDocument[] = []
   const movements: ReportMovement[] = []
   const saleCosts: SaleCostSnapshot[] = []
-  const purchases: PurchaseRecord[] = []
+  const shipments: ShipmentRecord[] = []
   const expenses: ExpenseRecord[] = []
   const movementCosts: NonNullable<AccountingSource['movementCosts']> = []
   let invoice = 0
@@ -194,52 +194,81 @@ export function syntheticSales(today = localDay(new Date())): SyntheticSales {
       })
     }
     if (random() < 0.12) {
-      const product = catalogProducts[Math.floor(random() * 20)]
-      const quantity = 6 + Math.floor(random() * 18)
-      movements.push({
-        id: `entrada-${day}`,
-        productId: product.id,
-        type: 'ENTRY',
-        quantity,
-        createdAt: `${day}T09:00:00Z`,
-      })
-      // Cada entrada de muestra viene de una compra, con su flete y su
-      // impuesto: es lo que alimenta el costo promedio en la operación real.
-      const unitPrice = round((demoAverageCost.get(product.id) ?? 0) * 0.94)
-      const taxAmount = round(unitPrice * quantity * 0.15)
-      purchases.push({
-        id: `compra-${day}`,
-        requestId: `compra-${day}`,
-        productId: product.id,
-        location: 'warehouse',
-        quantity,
-        unitPrice,
-        freightAmount: round(quantity * 8),
-        taxAmount,
-        recoverableTaxAmount: round(taxAmount * 0.6),
-        currency: 'NIO',
-        exchangeRate: 1,
+      // Un pedido de muestra es una caja con varios perfumes: la agencia cobra
+      // una sola vez, por el peso del paquete, y ese cobro se reparte por igual
+      // entre las unidades que venían dentro.
+      const picked: { productId: string; quantity: number; unitPrice: number }[] = []
+      const chosen = new Set<string>()
+      for (let line = 0; line < 2 + Math.floor(random() * 3); line++) {
+        const product = catalogProducts[Math.floor(random() * 20)]
+        if (chosen.has(product.id)) continue
+        chosen.add(product.id)
+        picked.push({
+          productId: product.id,
+          quantity: 4 + Math.floor(random() * 12),
+          unitPrice: round((demoAverageCost.get(product.id) ?? 0) * 0.88),
+        })
+      }
+      const units = picked.reduce((sum, line) => sum + line.quantity, 0)
+      const shippingAmount = round(units * (9 + random() * 5))
+      const shippingPerUnit = Math.round((shippingAmount / units) * 1e6) / 1e6
+      for (const line of picked)
+        movements.push({
+          id: `entrada-${day}-${line.productId}`,
+          productId: line.productId,
+          type: 'ENTRY',
+          quantity: line.quantity,
+          createdAt: `${day}T09:00:00Z`,
+        })
+      shipments.push({
+        id: `pedido-${day}`,
+        requestId: `pedido-${day}`,
         incurredOn: day,
         createdAt: `${day}T09:00:00Z`,
         supplier: ['Importadora del Golfo', 'Perfumes de Oriente', 'Distribuidora Central'][
           Math.floor(random() * 3)
         ],
-        reference: `FP-${day.replace(/-/g, '')}`,
-        note: 'Compra de muestra',
-        landedUnitCostNio: round(
-          unitPrice + 8 + (taxAmount - round(taxAmount * 0.6)) / quantity,
+        agency: ['Aeropaq', 'Cargo Express', 'Trans-Express'][Math.floor(random() * 3)],
+        reference: `PED-${day.replace(/-/g, '')}`,
+        note: 'Pedido de muestra',
+        currency: 'NIO',
+        exchangeRate: 1,
+        shippingAmount,
+        goodsAmount: round(
+          picked.reduce((sum, line) => sum + line.quantity * line.unitPrice, 0),
         ),
+        units,
+        shippingPerUnit,
+        lines: picked.map((line) => ({
+          id: `pedido-${day}-${line.productId}`,
+          productId: line.productId,
+          location: 'warehouse' as const,
+          quantity: line.quantity,
+          unitPrice: line.unitPrice,
+          goodsAmount: round(line.quantity * line.unitPrice),
+          shippingShare: Math.round(line.quantity * shippingPerUnit * 1e6) / 1e6,
+          landedUnitCostNio:
+            Math.round((line.unitPrice + shippingPerUnit) * 1e6) / 1e6,
+        })),
       })
     }
     // Los gastos fijos se registran el primero de cada mes.
     if (day.endsWith('-01'))
       expenses.push(
         ...([
-          ['alquiler', 'Alquiler del local', 14000],
-          ['salarios', 'Planilla del mes', 21500],
-          ['servicios', 'Energía, agua e internet', 4300],
-          ['publicidad', 'Pauta en redes sociales', 2600],
-          ['transporte', 'Entregas y mensajería', 1450],
+          ['renta', 'Alquiler del local', 14000],
+          ['salario', 'Planilla del mes', 21500],
+          ['agua_luz', 'Energía y agua', 3100],
+          ['internet', 'Servicio de internet', 1200],
+          ['marketing', 'Pauta en redes sociales', 2600],
+          ['combustible', 'Combustible de entregas', 1450],
+          ['papeleria', 'Papelería y facturas', 620],
+          ['limpieza', 'Artículos de limpieza', 480],
+          ['viatico', 'Viáticos de la ruta', 900],
+          ['impuestos_dgi', 'Anticipo mensual DGI', 3800],
+          ['impuestos_alma', 'Matrícula y basura ALMA', 1100],
+          ['interes_bancario', 'Intereses del préstamo', 2450],
+          ['prestamo_bancario', 'Cuota de capital del préstamo', 7800],
         ] as [ExpenseCategory, string, number][]
         ).map(([category, description, amount], index) => ({
           id: `gasto-${day}-${index}`,
@@ -249,8 +278,6 @@ export function syntheticSales(today = localDay(new Date())): SyntheticSales {
           category,
           description,
           amount,
-          taxAmount: category === 'salarios' ? 0 : round(amount * 0.15),
-          recoverableTaxAmount: category === 'salarios' ? 0 : round(amount * 0.09),
           currency: 'NIO' as const,
           exchangeRate: 1,
           reference: `CMP-${day.replace(/-/g, '')}-${index}`,
@@ -271,7 +298,7 @@ export function syntheticSales(today = localDay(new Date())): SyntheticSales {
         averageCostNio: demoAverageCost.get(product.id) ?? null,
         updatedAt: `${today}T09:00:00Z`,
       })),
-      purchases,
+      shipments,
       expenses,
       saleCosts,
       movementCosts,

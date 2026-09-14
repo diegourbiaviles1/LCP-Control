@@ -111,6 +111,13 @@ export interface DocumentItemRecord {
 export interface DocumentRecord {
   /** NIO per unit of document currency, saved at issuance. */
   exchangeRate?: number | null
+  /**
+   * Tasa con la que se cotizó el catálogo el día de la emisión. Es otra cosa
+   * que `exchangeRate`, que es la conversión contable: una factura en córdobas
+   * convierte a 1 para la contabilidad y aun así necesita ésta para imprimir su
+   * equivalente en dólares.
+   */
+  catalogRate?: number | null
   /** Percentage included in the displayed selling prices. */
   taxRate?: number
   previewKind?: 'draft' | 'example'

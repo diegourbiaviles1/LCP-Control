@@ -14,10 +14,12 @@ describe('synthetic local catalog', () => {
   it('keeps unique internal identifiers and a price for every tier and currency', () => {
     expect(catalogProducts).toHaveLength(30)
     expect(new Set(catalogProducts.map((p) => p.barcode)).size).toBe(30)
+    // El precio se fija en dólares y el de córdobas sale de la tasa de la
+    // vista local, igual que en la base: 25 × 36.6 = 915.
     expect(catalogProducts[0].prices).toEqual({
-      emprendedor: { NIO: 1000, USD: 25 },
-      vip: { NIO: 950, USD: 24 },
-      premium: { NIO: 900, USD: 22 },
+      emprendedor: { NIO: 915, USD: 25 },
+      vip: { NIO: 878.4, USD: 24 },
+      premium: { NIO: 805.2, USD: 22 },
     })
     expect(
       catalogProducts.every(
@@ -100,10 +102,10 @@ describe('document arithmetic', () => {
     },
   ]
   it('selects the quoted price for each currency and tier, preserving quantity', () => {
-    expect(draftTotal(lines, 'emprendedor', 'NIO')).toBe(3000)
+    expect(draftTotal(lines, 'emprendedor', 'NIO')).toBe(2745)
     expect(draftTotal(lines, 'emprendedor', 'USD')).toBe(75)
     expect(draftTotal(lines, 'premium', 'USD')).toBe(66)
-    expect(draftTotal(lines, 'premium', 'NIO')).toBe(2700)
+    expect(draftTotal(lines, 'premium', 'NIO')).toBe(2415.6)
     expect(lines[0].quantity).toBe(3)
   })
   it('rounds at the cent and rejects invalid quantities', () => {

@@ -24,6 +24,7 @@ import {
 } from './accounting'
 import {
   addDays,
+  localDay,
   previousRange,
   type ReportRange,
   type ReportSource,
@@ -67,6 +68,7 @@ interface DocumentItemRow {
 }
 interface DocumentRow {
   exchange_rate?: number | string | null
+  catalog_rate?: number | string | null
   tax_rate?: number | string | null
   customer_tax_id?: string
   items?: DocumentItemRow[] | null
@@ -95,7 +97,7 @@ inventory_balances(location,quantity)`
 const documentSelect = `id,kind,number,customer_id,customer_name,customer_phone,issuer,tier_code,
 currency,total,location,valid_until,payment_method,notes,created_at,customer_tax_id,
 document_items(id,product_id,description,quantity,unit_price,line_total)`
-const documentAccountingColumns = ',exchange_rate,tax_rate'
+const documentAccountingColumns = ',exchange_rate,tax_rate,catalog_rate'
 function missingDocumentColumns(error: { code?: string } | null) {
   return error?.code === '42703' || error?.code === 'PGRST204'
 }
@@ -260,6 +262,7 @@ function toDocument(row: DocumentRow): DocumentRecord {
     currency: row.currency,
     total: amount(row.total),
     exchangeRate: row.exchange_rate == null ? null : amount(row.exchange_rate),
+    catalogRate: row.catalog_rate == null ? null : amount(row.catalog_rate),
     taxRate: row.tax_rate == null ? undefined : amount(row.tax_rate),
     location: row.location,
     validUntil: row.valid_until,
@@ -336,19 +339,24 @@ export const supabaseAdapter: DataProvider = {
     return null
   },
   async getTodaySummary() {
-    const since = new Date()
-    since.setHours(0, 0, 0, 0)
-    const { data, error } = await client()
-      .from('documents')
-      .select('currency,total')
-      .eq('kind', 'invoice')
-      .gte('created_at', since.toISOString())
-      .limit(1000)
-    if (error) fail(error)
-    const rows = (data ?? []) as {
+    const today = localDay(new Date())
+    const since = new Date(`${today}T00:00:00-06:00`).toISOString()
+    const until = new Date(`${addDays(today, 1)}T00:00:00-06:00`).toISOString()
+    const { rows, truncated } = await readReportPages<{
       currency: Currency
       total: number | string
-    }[]
+    }>((start, end) =>
+      client()
+        .from('documents')
+        .select('currency,total', { count: 'exact' })
+        .eq('kind', 'invoice')
+        .gte('created_at', since)
+        .lt('created_at', until)
+        .order('id')
+        .range(start, end),
+    ).catch(fail)
+    if (truncated)
+      throw new AppError('unexpected', 'El resumen diario supera el límite de consulta. Revisa las ventas en Reportes.')
     return {
       count: rows.length,
       totals: {
@@ -457,7 +465,7 @@ export const supabaseAdapter: DataProvider = {
     if (error) fail(error)
     return toDocument(data as unknown as DocumentRow)
   },
-  recordPurchase: accounting.recordPurchase,
+  recordShipment: accounting.recordShipment,
   setOpeningCost: accounting.setOpeningCost,
   recordExpense: accounting.recordExpense,
   voidExpense: accounting.voidExpense,

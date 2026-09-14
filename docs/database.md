@@ -1,6 +1,6 @@
 # Base de datos del negocio
 
-Proyecto activo: **LCP-Control**, `xkpujpoocsbkychstrne`, el que configura `.env.local`. Es el que usa la aplicación; el identificador `vqicpwbwuatlyfdzpfne` que aparecía aquí antes no correspondía a este proyecto. **Las trece migraciones de `supabase/migrations` están aplicadas**, incluidas la contabilidad de costos y la tasa del dólar. Las de endurecimiento toleran que un proyecto nuevo no tenga la función histórica `rls_auto_enable`.
+Proyecto activo: **LCP-Control**, `xkpujpoocsbkychstrne`, el que configura `.env.local`. Es el que usa la aplicación; el identificador `vqicpwbwuatlyfdzpfne` que aparecía aquí antes no correspondía a este proyecto. **Las dieciséis migraciones de `supabase/migrations` están aplicadas**, verificado el 14 de septiembre de 2026, incluidas contabilidad, pedidos con envío, cuentas de gasto y precios del catálogo en dólares. Las de endurecimiento toleran que un proyecto nuevo no tenga la función histórica `rls_auto_enable`.
 
 Antes de dar por buena una actualización del código, comprobar que la base va a la par. Ya pasó dos veces que no lo estaba: primero cuatro migraciones aplicadas a otro proyecto, y después un primer intento de costos escrito directamente en la base y nunca guardado como archivo. La comprobación rápida:
 
@@ -8,7 +8,7 @@ Antes de dar por buena una actualización del código, comprobar que la base va 
 select version, name from supabase_migrations.schema_migrations order by version;
 ```
 
-Debe listar las trece migraciones de `supabase/migrations`. La columna `version` guarda la hora en que se aplicó cada una, no el número del archivo; el nombre es el que cuadra con el repositorio.
+Debe listar las dieciséis migraciones de `supabase/migrations`. En este proyecto los identificadores remotos difieren de los nombres locales porque las migraciones se aplicaron mediante MCP: se corresponden por nombre; la última figura como `catalog_priced_in_usd`.
 
 ## El intento de costos que se retiró
 
@@ -18,10 +18,10 @@ El proyecto llegó a tener una primera versión de costos aplicada a mano: una t
 
 ## Datos cargados y trazabilidad
 
-- 260 productos, 38 marcas, 3 listas y 1,560 precios independientes NIO/USD. La comparación con los valores originales dio cero diferencias.
+- 260 productos, 38 marcas, 3 listas y 1,560 precios NIO/USD. El precio base se fija en dólares y su equivalente en córdobas se recalcula al cambiar la tasa del negocio. Verificación del 14 de septiembre: tasa de 37 y cero precios inconsistentes.
 - 780 filas de origen, sus tres archivos, hojas y hashes SHA-256 en `private.import_sources/import_rows`. La identidad de unión es marca + nombre + presentación.
 - 520 saldos por Bodega/Tienda sin contar (`NULL`); no se deducen existencias de las listas de precios.
-- Fotos: **pendientes en este proyecto**. 258 productos conservan su enlace de origen en `image_reference`, pero el bucket `product-images` está vacío y ningún producto tiene `image_path`, así que el catálogo muestra «Foto pendiente». La conversión descrita (WebP, lado mayor 1,000 píxeles, calidad 80, 256 archivos y 8,212,792 bytes) se hizo contra el proyecto anterior. Para repetirla aquí se usa `scripts/import_product_images.mjs` con los originales locales. Comprobación: `select count(*) from storage.objects where bucket_id='product-images';`
+- Fotos: **258 productos tienen `image_path` registrado**, verificado el 14 de septiembre de 2026. Esto confirma la asociación en el catálogo; no sustituye comprobar la carga de cada archivo con una sesión autorizada. Para importar originales locales se usa `scripts/import_product_images.mjs`. Comprobación: `select count(*) from public.products where image_path is not null;`
 - Sin imagen de origen: LCP-0209 (Phantom Parfum con desodorante) y LCP-0210 (One Million EDT con gel). Se pueden añadir desde el editor.
 - Clientes, proveedores, documentos y movimientos comienzan vacíos, por decisión del usuario. No se trasladaron operaciones del proyecto anterior.
 
@@ -45,9 +45,9 @@ La salida en `private-data/database-import` está excluida de Git. No incorporar
 | Facturas/proformas | `documents` y `document_items`; numeraciones FAC/PRO separadas, datos y precios congelados, RUC del cliente incluido.                                                |
 | Borradores         | `user_drafts`; facturas/proformas separadas por usuario, sincronizadas entre equipos y protegidas contra sobreescrituras concurrentes.                               |
 | Negocio            | `business_settings`; nombre, dirección y teléfono editables; cambios solo afectan documentos nuevos.                                                                 |
-| Costos de compra   | `product_costs` (promedio ponderado vigente), `purchase_records` y `opening_cost_records`. Tabla aparte del catálogo para que la política de acceso deje fuera a Ventas.                       |
+| Costos de compra   | `product_costs` (promedio ponderado vigente), `purchase_shipments` con sus `purchase_shipment_lines`, y `opening_cost_records`. Tabla aparte del catálogo para que la política de acceso deje fuera a Ventas. |
 | Costos congelados  | `document_item_costs` guarda costo, tipo de cambio, tasa de impuesto y venta neta de cada renglón al emitir; `inventory_movement_costs` hace lo mismo con mermas, salidas y ajustes negativos. |
-| Gastos             | `expense_records`; categoría, comprobante, impuesto y parte recuperable. No se borran: se anulan con motivo y quedan en el historial.                                                          |
+| Gastos             | `expense_records`; categoría, comprobante e importe, repartidos en cinco cuentas. No se borran: se anulan con motivo y quedan en el historial.                                                 |
 | Tipo de cambio     | `exchange_rates`, una sola fila con la tasa vigente en córdobas por dólar y quién la cambió. Se edita en **Negocio** con `set_exchange_rate`; sólo propone un valor, nunca reescribe operaciones pasadas. |
 | Acceso             | Supabase Auth guarda las credenciales. `staff_members` es la única fuente de permisos. `private.pending_staff` reserva correos y roles antes de activar cuentas.     |
 
@@ -86,17 +86,20 @@ Site URL ya apunta a `http://127.0.0.1:5173/login`, el programa local, para regr
 El costo se registra donde ocurre la compra, no como un campo de la ficha del perfume que alguien deba recordar actualizar. Todo el módulo vive en **Reportes → Costos, margen y gastos**, visible sólo para Administrador y SuperAdmin (`product.edit_cost` y la política `owner_accounting_read`). Los precios del catálogo son precios de venta y nunca se usan como costo.
 
 - **Estado:** aplicado. Las 260 filas de `product_costs` existen con el promedio en blanco; cada perfume adquiere su costo al registrar su costo inicial o su primera compra.
-- **Método:** promedio ponderado. Cada compra recibida recalcula `nuevo promedio = (existencias previas × promedio previo + costo puesto en bodega de la compra) ÷ unidades totales`, dentro de la misma transacción que suma las existencias.
-- **Costo puesto en bodega:** precio del proveedor + flete + impuestos **no** recuperables. La parte recuperable del impuesto se registra aparte y no infla el costo.
-- **Monedas:** cada compra y cada gasto guardan su propio tipo de cambio; la contabilidad se consolida en córdobas con esa tasa histórica, no con una tasa del día. La tasa vigente se configura en **Negocio** y se propone al facturar en dólares y al registrar compras y gastos; el campo sigue siendo editable en cada operación. Vive en `exchange_rates` y no en `business_settings` porque `create_document` congela esa fila entera como emisor del documento.
-- **Congelado al vender:** `create_document` deja copiado en cada renglón el costo vigente, la tasa y el impuesto. Un margen de enero no cambia porque en marzo se compre más caro.
+- **Método:** promedio ponderado. Cada renglón recibido recalcula `nuevo promedio = (existencias previas × promedio previo + costo puesto en bodega del renglón) ÷ unidades totales`, dentro de la misma transacción que suma las existencias.
+- **Cómo llega la mercadería:** por agencia de envíos. Se pide una caja con varios perfumes y la agencia cobra el peso del paquete, nada más. Por eso la unidad de registro es el **pedido**: una cabecera con el proveedor, la agencia y el envío cobrado, y un renglón por perfume con su precio original —ya con el descuento por cantidad, si lo hubo—.
+- **Costo puesto en bodega:** precio del proveedor + la parte del envío que le toca a la unidad. El envío se reparte **por igual entre todas las unidades del pedido**, que es lo que más se acerca a un cobro por peso sin pedirle a nadie que pese cada frasco. No hay impuestos de compra que separar.
+- **Monedas:** cada pedido y cada gasto guardan su propio tipo de cambio; la contabilidad se consolida en córdobas con esa tasa histórica, no con una tasa del día. La tasa vigente se configura en **Negocio** y se propone al facturar en dólares y al registrar pedidos y gastos; el campo sigue siendo editable en cada operación. Vive en `exchange_rates` y no en `business_settings` porque `create_document` congela esa fila entera como emisor del documento.
+- **Congelado al vender:** `create_document` deja copiado en cada renglón el costo vigente, la tasa y el impuesto de la venta. Un margen de enero no cambia porque en marzo se compre más caro.
 - **Nunca se inventa un costo:** una unidad sin costo conocido se muestra como pendiente, jamás como cero. Mientras haya pendientes, la utilidad del período queda en blanco y las cifras conocidas se muestran por separado.
-- **Carga inicial:** los 260 perfumes empiezan sin costo. En **Costos y precios → Cargar costos desde lista** se pega la columna de códigos y la de costos desde Excel; cada fila se valida contra el catálogo antes de escribir nada y las que no se pueden registrar se explican una por una. Un producto que ya tiene promedio no se sobrescribe: se actualiza registrando la compra.
-- **Qué se obtiene:** utilidad bruta y resultado operativo del período, margen por producto y por lista de precios, ventas por debajo del costo, inventario valorado a costo, rotación anual y días de inventario, gastos por categoría y evolución mes a mes. Todo sale también en el PDF y en el libro de Excel.
+- **Carga inicial:** los 260 perfumes empiezan sin costo. En **Costos y precios → Cargar costos desde lista** se pega la columna de códigos y la de costos desde Excel; cada fila se valida contra el catálogo antes de escribir nada y las que no se pueden registrar se explican una por una. Un producto que ya tiene promedio no se sobrescribe: se actualiza registrando el pedido.
+- **Las cinco cuentas de gasto:** impuestos y tasas (DGI, ALMA), pago de préstamos (acreedores, bancarios), gastos financieros (intereses bancarios y de acreedor), gastos de ventas (renta, salario, papelería, combustible, agua y luz, internet, limpieza, muebles y equipos, viático, marketing) y gastos operativos (compra de mercadería, flete de importación). La cuenta se deduce de la categoría en la aplicación y no se guarda, para que una fila no pueda quedar en una cuenta que no le toca.
+- **Sólo tres cuentas bajan la utilidad.** El **pago de préstamos** devuelve capital: la cuota no empobrece al negocio, sólo mueve el dinero; lo que cuesta el préstamo es su interés, y ése ya está en gastos financieros. Los **gastos operativos** no se teclean: son los pedidos del período y pesan en el resultado cuando se vende cada perfume, como costo de lo vendido. Registrarlos otra vez a mano sería contarlos dos veces, así que la base rechaza esas categorías.
+- **Qué se obtiene:** utilidad bruta y resultado operativo del período, cuánto costó la mercadería y cuánto el envío, margen por producto y por lista de precios, ventas por debajo del costo, inventario valorado a costo, rotación anual y días de inventario, gastos por cuenta y por categoría, y evolución mes a mes. Todo sale también en el PDF y en el libro de Excel.
 
-Las funciones `record_purchase`, `set_opening_cost`, `record_expense` y `void_expense` exigen rol `admin`, reciben un requestId idempotente y bloquean producto y saldos antes de tocar el promedio. Un movimiento de entrada registrado por la vía genérica de inventario invalida el promedio del producto a propósito: sólo una compra con su costo puede volver a establecerlo.
+Las funciones `record_shipment`, `set_opening_cost`, `record_expense` y `void_expense` exigen rol `admin`, reciben un requestId idempotente y bloquean producto y saldos antes de tocar el promedio. `record_shipment` valida el pedido completo —renglones, cantidades y envío— antes de tocar una sola existencia, y rechaza un mismo perfume repetido en dos renglones del mismo pedido. Un movimiento de entrada registrado por la vía genérica de inventario invalida el promedio del producto a propósito: sólo un pedido con su costo puede volver a establecerlo.
 
-La vista local (`/demo`) trae un libro contable inventado —costos, compras, gastos y márgenes— para poder recorrer el módulo antes de aplicar la migración. No permite registrar nada.
+La vista local (`/demo`) trae un libro contable inventado —costos, pedidos, gastos y márgenes— para poder recorrer el módulo antes de aplicar la migración. No permite registrar nada.
 
 ## Operación y comprobaciones
 
@@ -106,7 +109,7 @@ Las escrituras del negocio pasan por funciones con comprobaciones de rol, valida
 
 El historial de documentos permite consultar las últimas 200 facturas o proformas autorizadas y reimprimirlas en carta/PDF; movimientos muestra los últimos 200 registros autorizados. Clientes/proveedores muestran hasta 2,000 registros por pantalla. Para volúmenes mayores, añadir paginación de servidor.
 
-Las pruebas locales incluyen 23 comprobaciones PostgreSQL de permisos, revisiones, persistencia, instantáneas y archivo de productos. En la base real se verificaron escrituras de cliente, proveedor y borrador, lectura de las 256 fotos privadas y aislamiento de solo consulta dentro de una transacción revertida: no quedaron registros de prueba.
+`npm run test:db` incluye las 23 comprobaciones históricas de catálogo y las 21 de contabilidad y precios actuales. Comprueba permisos, revisiones, persistencia, instantáneas, costos, gastos y conversión de precios en PostgreSQL desechable. La revisión del 14 de septiembre consultó la base real sin escribir operaciones: 260 productos, 1,560 precios, cero precios inconsistentes, cero saldos negativos y 520 saldos todavía sin contar.
 
 El asesor de seguridad informa seis tablas privadas con RLS sin políticas: es intencional, no se consultan directamente desde la API. También advierte sobre diez RPC SECURITY DEFINER accesibles a authenticated —la décima es `set_exchange_rate`—; son las escrituras y consultas autorizadas del programa, con controles internos de rol y search_path vacío. Las cuatro RPC de contabilidad no aparecen en el aviso porque su envoltura pública es SECURITY INVOKER. [Detalle del aviso](https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable). No se amplió el acceso público para ocultar estas advertencias.
 

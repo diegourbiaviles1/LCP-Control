@@ -4,6 +4,13 @@ import type { DataProvider } from '../contracts'
 // Shared by the catalog and demo providers: the local views read the catalogue
 // but must never look as if they issued a document or moved real stock.
 // Invented business details: the local view never shows the real ones.
+/**
+ * El catálogo se cotiza en dólares y el precio en córdobas sale de esta tasa,
+ * igual que en la base real. La vista local la usa para que lo que se ve en
+ * pantalla —precio, equivalente y tasa— cuadre entre sí. Vive aquí, y no junto
+ * al catálogo de muestra, porque ese módulo ya importa de éste.
+ */
+export const DEMO_EXCHANGE_RATE = 36.6
 export const localBusiness: BusinessSettings = {
   name: 'La Casa del Perfume · vista local',
   address: 'Dirección de prueba',
@@ -39,7 +46,7 @@ export const unconfiguredAdapter: DataProvider = {
   createDocument: async () => missingConfiguration(),
   recordMovement: async () => missingConfiguration(),
   getReportSource: async () => missingConfiguration(),
-  recordPurchase: async () => missingConfiguration(),
+  recordShipment: async () => missingConfiguration(),
   setOpeningCost: async () => missingConfiguration(),
   recordExpense: async () => missingConfiguration(),
   voidExpense: async () => missingConfiguration(),
@@ -52,9 +59,10 @@ export const localWrites = {
   async getBusiness(): Promise<BusinessSettings> {
     return { ...localBusiness }
   },
-  // Tasa inventada, igual que el resto de la vista local.
+  // La misma tasa con la que se cotizó el catálogo de muestra: el equivalente
+  // que se enseña en pantalla tiene que dar el precio de la otra lista.
   async getExchangeRate() {
-    return { usdToNio: 36.6, updatedAt: null }
+    return { usdToNio: DEMO_EXCHANGE_RATE, updatedAt: null }
   },
   saveExchangeRate: async () => unavailable(),
   async listCustomers() {
@@ -67,7 +75,7 @@ export const localWrites = {
   },
   createDocument: async () => unavailable(),
   recordMovement: async () => unavailable(),
-  recordPurchase: async () => unavailable(),
+  recordShipment: async () => unavailable(),
   setOpeningCost: async () => unavailable(),
   recordExpense: async () => unavailable(),
   voidExpense: async () => unavailable(),

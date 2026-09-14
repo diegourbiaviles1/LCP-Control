@@ -592,6 +592,27 @@ input[type='file']::file-selector-button:hover {
   color: var(--wine);
   font-size: 24px;
 }
+/* El mismo total en la otra moneda. Va bajo el total, sin recuadro ni color de
+   marca: acompaña la cifra que se cobra, no compite con ella. */
+.invoice-equivalent {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 4px 16px;
+  margin: -14px 0 6px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 12px;
+}
+.invoice-equivalent strong {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.invoice-equivalent small {
+  font-size: 11px;
+}
 .invoice-notice {
   color: var(--muted);
   font-size: 11px;

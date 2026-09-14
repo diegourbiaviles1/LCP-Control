@@ -28,14 +28,14 @@ Mantener el servidor encendido mientras se utiliza la aplicación. Usar siempre 
 - **Proformas:** emite `PRO-…` con vigencia; no cobra ni modifica inventario. Tiene borradores separados de las facturas.
 - **Documentos emitidos:** muestran los renglones e importes confirmados por la base, quedan bloqueados para edición y pueden imprimirse o compartirse. Para preparar otro documento se usa Nueva factura/Nueva proforma. El RUC del cliente se conserva al emitir. El historial permite reabrir los últimos 200 documentos autorizados y reimprimirlos.
 - **WhatsApp y PDF:** comparten un borrador identificado como tal o el documento emitido. WhatsApp abre el mensaje para revisión y envío manual. El PDF usa el menú de compartir cuando el navegador lo permite; en computadora se descarga.
-- **Inventario unificado:** vistas de tarjetas y tabla, alta, edición, cambio de foto, seis precios y retiro/reactivación para administradores. Desde la edición se pueden sumar o descontar cantidades por ubicación, con motivo e historial. Los datos del perfume y los movimientos tienen botones de guardado independientes.
+- **Inventario unificado:** vistas de tarjetas y tabla, alta, edición, cambio de foto, tres precios en dólares y sus equivalentes en córdobas según la tasa del negocio, y retiro/reactivación para administradores. Desde la edición se pueden sumar o descontar cantidades por ubicación, con motivo e historial. Los datos del perfume y los movimientos tienen botones de guardado independientes.
 - **Mi cuenta:** nombre visible, correo y contraseña de la propia cuenta.
 - **Clientes:** alta, edición, archivo, contacto, RUC y lista de precios; selección directa al facturar/cotizar.
 - **Usuarios:** autorización previa de correos, cinco roles y desactivación conservando el historial. Cada persona activa su acceso en `/activate`. El envío SMTP a usuarios fuera del equipo de Supabase está pendiente.
 - **Negocio:** nombre comercial, dirección y teléfono editables, y el tipo de cambio vigente del dólar. La tasa se propone al facturar en dólares y al registrar compras y gastos; cada operación conserva la que se usó, así que cambiarla no altera nada ya emitido.
 - **Proveedores:** contactos, condiciones, notas y estado compartidos en Supabase, con revisión de cambios concurrentes.
 - **Reportes:** ingresos, ticket, unidades y proformas con su variación contra el periodo anterior; cobertura de existencias, capital detenido, concentración de ventas, clientes que no volvieron, frecuencia de compra, ventas por día de la semana y mermas. Se descargan en PDF y en Excel.
-- **Contabilidad:** costo de compra por promedio ponderado, impuestos y su parte recuperable, gastos por categoría y estado de resultados del periodo. Muestra el margen de cada producto y de cada lista de precios, las ventas por debajo del costo, el inventario valorado a costo y la rotación. Sólo para Administrador y SuperAdmin; el personal de ventas nunca ve costos.
+- **Contabilidad:** pedidos de importación —precio del proveedor por perfume y envío cobrado por la agencia según el peso, repartido por igual entre las unidades de la caja—, costo promedio ponderado, gastos en las cinco cuentas del negocio —el pago de préstamos se informa sin restar de la utilidad, porque devuelve capital— y estado de resultados del periodo. Muestra el margen de cada producto y de cada lista de precios, las ventas por debajo del costo, el inventario valorado a costo y la rotación. Sólo para Administrador y SuperAdmin; el personal de ventas nunca ve costos.
 
 Los reintentos de emisión y movimientos con los mismos datos conservan el identificador de operación mientras el formulario sigue abierto. Los clics simultáneos comparten una sola solicitud. Si se pierde una respuesta, reintentar desde ese formulario. Cerrar, recargar o empezar otra operación crea una nueva solicitud: ante una emisión dudosa, comprobar el registro en la base antes de repetirla.
 
@@ -61,7 +61,7 @@ npm run test:db
 npm run test:e2e
 ```
 
-`check` ejecuta lint, pruebas unitarias/integración y compilación. Playwright utiliza Chrome instalado y prueba escritorio y móvil con un servidor propio en el puerto 5174 y credenciales vacías. El puerto debe estar libre. Las pruebas de interfaz no realizan operaciones contra la base real.
+`check` ejecuta lint, pruebas unitarias/integración y compilación. `test:db` ejecuta las suites de catálogo y contabilidad en PostgreSQL desechable, incluidas las migraciones de precios en dólares. Playwright utiliza Chrome instalado y prueba escritorio y móvil con un servidor propio en el puerto 5174 y credenciales vacías. El puerto debe estar libre. Las pruebas de interfaz no realizan operaciones contra la base real.
 
 Para limpiar salidas generadas, detener antes las pruebas y el servidor de preview:
 

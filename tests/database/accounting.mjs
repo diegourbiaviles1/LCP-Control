@@ -37,11 +37,13 @@ async function average(id = product) {
 async function quantity(id = product, location = 'store') {
   return (await db.query('select quantity from public.inventory_balances where product_id=$1 and location=$2', [id, location])).rows[0].quantity
 }
-const purchase = (changes = {}) => ({
-  requestId: crypto.randomUUID(), productId: product, location: 'store', quantity: 10,
-  unitPrice: 100, freightAmount: 100, taxAmount: 150, recoverableTaxAmount: 100,
-  currency: 'NIO', exchangeRate: 1, incurredOn: '2026-01-01', supplier: 'Proveedor',
-  reference: 'COM-001', note: 'Factura de compra', ...changes,
+// Un pedido: una caja con perfumes y un solo cobro de la agencia por el peso.
+const shipment = (changes = {}, lines) => ({
+  requestId: crypto.randomUUID(), incurredOn: '2026-01-01', supplier: 'Proveedor',
+  agency: 'Agencia de envíos', reference: 'PED-001', note: 'Factura del proveedor',
+  currency: 'NIO', exchangeRate: 1, shippingAmount: 100,
+  lines: lines ?? [{ productId: product, location: 'store', quantity: 10, unitPrice: 105 }],
+  ...changes,
 })
 const opening = (changes = {}) => ({
   requestId: crypto.randomUUID(), productId: product, unitCost: 50, currency: 'NIO',
@@ -57,8 +59,8 @@ const movement = (changes = {}) => ({
   quantity: 1, note: 'Frasco roto', ...changes,
 })
 const expense = (changes = {}) => ({
-  requestId: crypto.randomUUID(), incurredOn: '2026-01-01', category: 'servicios',
-  description: 'Servicio eléctrico', amount: 100, taxAmount: 15, recoverableTaxAmount: 10,
+  requestId: crypto.randomUUID(), incurredOn: '2026-01-01', category: 'agua_luz',
+  description: 'Servicio eléctrico', amount: 100,
   currency: 'NIO', exchangeRate: 1, reference: 'REC-001', ...changes,
 })
 
@@ -93,8 +95,8 @@ try {
   await check('existing selling prices never become costs and unknown counts block opening/purchases', async () => {
     assert.equal(await average(), null)
     await assert.rejects(rpc('set_opening_cost', opening({ productId: unknown })), /conteo/)
-    await assert.rejects(rpc('record_purchase', purchase({ productId: unknown })), /conteo/)
-    assert.equal((await rows('purchase_records')).length, 0)
+    await assert.rejects(rpc('record_shipment', shipment({}, [{ productId: unknown, location: 'store', quantity: 1, unitPrice: 10 }])), /conteo/)
+    assert.equal((await rows('purchase_shipments')).length, 0)
   })
   await check('legacy sales freeze unknown cost without deriving it from sale prices', async () => {
     const doc = await rpc('create_document', invoice({ items: [{ productId: legacy, quantity: 1 }] }))
@@ -113,15 +115,20 @@ try {
     await assert.rejects(rpc('set_opening_cost', opening()), /ya tiene costo/)
     assert.equal((await rows('opening_cost_records')).length, 1)
   })
-  await check('weighted landed cost excludes recoverable tax and purchase updates stock exactly once', async () => {
-    const input = purchase()
-    const id = await rpc('record_purchase', input)
-    assert.equal(await rpc('record_purchase', input), id)
+  await check('the agency weight is split evenly per unit and the shipment receives stock exactly once', async () => {
+    const input = shipment()
+    const id = await rpc('record_shipment', input)
+    assert.equal(await rpc('record_shipment', input), id)
     assert.equal(await quantity(), 20)
+    // 105 del proveedor + 10 de peso por unidad, ponderado contra las 10 existentes a 50.
     assert.equal(await average(), 82.5)
-    assert.equal(Number((await rows('purchase_records'))[0].landed_unit_cost_nio), 115)
-    await assert.rejects(rpc('record_purchase', { ...input, quantity: 11 }), /otros datos/)
-    assert.equal((await rows('purchase_records')).length, 1)
+    const header = (await rows('purchase_shipments'))[0]
+    assert.equal(Number(header.shipping_per_unit), 10)
+    assert.equal(Number(header.goods_amount), 1050)
+    assert.equal(header.units, 10)
+    assert.equal(Number((await rows('purchase_shipment_lines'))[0].landed_unit_cost_nio), 115)
+    await assert.rejects(rpc('record_shipment', { ...input, shippingAmount: 101 }), /otros datos/)
+    assert.equal((await rows('purchase_shipments')).length, 1)
   })
   await check('sales freeze average and included taxes before stock deduction', async () => {
     const input = invoice()
@@ -134,8 +141,9 @@ try {
     assert.equal(await quantity(), 18)
     assert.equal((await rows('inventory_movement_costs')).length, 0)
   })
-  await check('USD purchase converts once and weights the remaining stock', async () => {
-    await rpc('record_purchase', purchase({ currency: 'USD', exchangeRate: 36.5, quantity: 2, unitPrice: 3, freightAmount: 0, taxAmount: 0, recoverableTaxAmount: 0 }))
+  await check('USD shipment converts once and weights the remaining stock', async () => {
+    await rpc('record_shipment', shipment({ currency: 'USD', exchangeRate: 36.5, shippingAmount: 0 },
+      [{ productId: product, location: 'store', quantity: 2, unitPrice: 3 }]))
     assert.equal(await quantity(), 20)
     assert.equal(await average(), 85.2)
     assert.equal(Number((await rows('document_item_costs')).find((r) => Number(r.unit_cost_nio) === 82.5).unit_cost_nio), 82.5)
@@ -179,35 +187,64 @@ try {
     assert.equal(await average(), 90)
     assert.equal((await rows('document_item_costs')).find((r) => r.document_id === doc.id).unit_cost_nio, null)
   })
-  await check('purchase into legacy cost gap keeps average unknown; empty stock can establish cost', async () => {
-    await rpc('record_purchase', purchase({ productId: legacy }))
+  await check('a shipment into a legacy cost gap keeps the average unknown; empty stock can establish cost', async () => {
+    await rpc('record_shipment', shipment({}, [{ productId: legacy, location: 'store', quantity: 10, unitPrice: 105 }]))
     assert.equal(await average(legacy), null)
-    await rpc('record_purchase', purchase({ productId: empty }))
+    await rpc('record_shipment', shipment({}, [{ productId: empty, location: 'store', quantity: 10, unitPrice: 105 }]))
     assert.equal(await average(empty), 115)
   })
-  await check('invalid currency, money, tax and dates roll back all purchase effects', async () => {
+  await check('one box with two perfumes shares the same weight charge and refuses a repeated product', async () => {
+    const before = await quantity(empty)
+    // 30 unidades y 300 de envío: diez córdobas de peso para cada perfume.
+    await rpc('record_shipment', shipment({ shippingAmount: 300 }, [
+      { productId: empty, location: 'store', quantity: 10, unitPrice: 105 },
+      { productId: legacy, location: 'warehouse', quantity: 20, unitPrice: 40 },
+    ]))
+    const header = (await rows('purchase_shipments')).at(-1)
+    assert.equal(Number(header.shipping_per_unit), 10)
+    assert.equal(header.units, 30)
+    assert.equal(await quantity(empty), before + 10)
+    assert.equal(await quantity(legacy, 'warehouse'), 20)
+    // El empty ya valía 115 con 10 unidades; entran otras 10 al mismo costo.
+    assert.equal(await average(empty), 115)
+    await assert.rejects(rpc('record_shipment', shipment({}, [
+      { productId: empty, location: 'store', quantity: 1, unitPrice: 10 },
+      { productId: empty, location: 'warehouse', quantity: 1, unitPrice: 10 },
+    ])), /repetirse/)
+  })
+  await check('invalid currency, money, lines and dates roll back all shipment effects', async () => {
     const before = await quantity()
-    const count = (await rows('purchase_records')).length
-    for (const patch of [
-      { exchangeRate: 2 }, { exchangeRate: 0, currency: 'USD' }, { exchangeRate: 'NaN', currency: 'USD' },
-      { currency: 'EUR' }, { quantity: 1.5 }, { unitPrice: -1 }, { unitPrice: '100' },
-      { freightAmount: 0.001 }, { recoverableTaxAmount: 151 }, { incurredOn: '2026-02-30' },
-      { incurredOn: '2099-01-01' }, { supplier: 'X'.repeat(161) },
-    ]) await assert.rejects(rpc('record_purchase', purchase(patch)))
+    const count = (await rows('purchase_shipments')).length
+    const lines = (changes) => [{ productId: product, location: 'store', quantity: 10, unitPrice: 105, ...changes }]
+    for (const [patch, replacement] of [
+      [{ exchangeRate: 2 }], [{ exchangeRate: 0, currency: 'USD' }], [{ exchangeRate: 'NaN', currency: 'USD' }],
+      [{ currency: 'EUR' }], [{ shippingAmount: 0.001 }], [{ shippingAmount: -1 }],
+      [{ incurredOn: '2026-02-30' }], [{ incurredOn: '2099-01-01' }], [{ supplier: 'X'.repeat(161) }],
+      [{}, []], [{}, lines({ quantity: 1.5 })], [{}, lines({ unitPrice: -1 })], [{}, lines({ unitPrice: '100' })],
+      [{}, lines({ location: 'bodega' })], [{}, lines({ productId: null })],
+    ]) await assert.rejects(rpc('record_shipment', shipment(patch, replacement)))
     assert.equal(await quantity(), before)
-    assert.equal((await rows('purchase_records')).length, count)
+    assert.equal((await rows('purchase_shipments')).length, count)
+    assert.equal((await rows('inventory_movements')).filter((r) => r.note === 'Pedido de importación recibido').length,
+      (await rows('purchase_shipment_lines')).length)
   })
   let expenseId
-  await check('expenses separate recoverable tax, are idempotent and prohibit merchandise category', async () => {
+  await check('expenses keep their own rate, are idempotent and prohibit merchandise category', async () => {
     const input = expense()
     expenseId = await rpc('record_expense', input)
     assert.equal(await rpc('record_expense', input), expenseId)
-    const row = (await rows('expense_records'))[0]
-    assert.equal((Number(row.amount) + Number(row.tax_amount) - Number(row.recoverable_tax_amount)) * Number(row.exchange_rate), 105)
+    const row = (await rows('expense_records')).find((r) => r.id === expenseId)
+    assert.equal(Number(row.amount) * Number(row.exchange_rate), 100)
     await assert.rejects(rpc('record_expense', { ...input, amount: 101 }), /otros datos/)
     await assert.rejects(rpc('record_expense', expense({ category: 'mercaderia' })))
-    await assert.rejects(rpc('record_expense', expense({ recoverableTaxAmount: 16 })), /impuestos/)
-    assert.equal((await rows('expense_records')).length, 1)
+    // Las dos categorías de gastos operativos salen de los pedidos: no se teclean.
+    await assert.rejects(rpc('record_expense', expense({ category: 'compra_mercaderia' })))
+    await assert.rejects(rpc('record_expense', expense({ category: 'flete_importacion' })))
+    await assert.rejects(rpc('record_expense', expense({ category: 'servicios' })))
+    await assert.rejects(rpc('record_expense', expense({ amount: 0 })), /monto/)
+    for (const category of ['impuestos_dgi', 'prestamo_bancario', 'interes_acreedor', 'marketing'])
+      assert.ok(await rpc('record_expense', expense({ category })))
+    assert.equal((await rows('expense_records')).length, 5)
   })
   await check('void expense preserves audit, permits retry and rejects a different reason', async () => {
     const voidExpense = (reason) => db.query('select public.void_expense($1,$2) as id', [expenseId, reason])
@@ -215,23 +252,23 @@ try {
     assert.equal((await voidExpense('Duplicado')).rows[0].id, expenseId)
     assert.equal((await voidExpense('Duplicado')).rows[0].id, expenseId)
     await assert.rejects(voidExpense('Otro'), /otro motivo/)
-    const row = (await rows('expense_records'))[0]
+    const row = (await rows('expense_records')).find((r) => r.id === expenseId)
     assert.ok(row.voided_at)
     assert.equal(row.voided_by, admin)
     assert.equal(row.void_reason, 'Duplicado')
     assert.equal(Number(row.amount), 100)
   })
   await check('all cost tables and RPCs enforce roles independently of the UI', async () => {
-    const tables = ['product_costs', 'purchase_records', 'opening_cost_records', 'expense_records', 'document_item_costs', 'inventory_movement_costs']
+    const tables = ['product_costs', 'purchase_shipments', 'purchase_shipment_lines', 'opening_cost_records', 'expense_records', 'document_item_costs', 'inventory_movement_costs']
     for (const uid of [operator, warehouse, viewer, outsider]) {
       await identity(uid)
       for (const table of tables) assert.equal((await rows(table)).length, 0, `${uid} must not see ${table}`)
-      for (const name of ['record_purchase', 'set_opening_cost', 'record_expense']) await assert.rejects(rpc(name, {}), /insufficient_privilege/)
+      for (const name of ['record_shipment', 'set_opening_cost', 'record_expense']) await assert.rejects(rpc(name, {}), /insufficient_privilege/)
       await assert.rejects(db.query('select public.void_expense($1,$2)', [expenseId, 'Motivo']), /insufficient_privilege/)
     }
     await identity('', 'anon')
     for (const table of tables) await assert.rejects(rows(table), /permission denied/)
-    for (const name of ['record_purchase', 'set_opening_cost', 'record_expense']) await assert.rejects(rpc(name, {}), /permission denied/)
+    for (const name of ['record_shipment', 'set_opening_cost', 'record_expense']) await assert.rejects(rpc(name, {}), /permission denied/)
     await identity(admin)
     for (const table of tables) {
       await assert.rejects(db.query(`delete from public.${table}`), /permission denied/)
@@ -270,6 +307,37 @@ try {
     await assert.rejects(db.query('select public.set_exchange_rate($1::numeric)', [0]), /tipo de cambio/)
     await assert.rejects(db.query('select public.set_exchange_rate(null::numeric)'), /tipo de cambio/)
     await assert.rejects(db.query('update public.exchange_rates set usd_to_nio=1'), /permission denied/)
+  })
+  await check('current catalogue saves derive all NIO prices from USD and enforce revisions', async () => {
+    const input = {
+      id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', revision: 0,
+      name: 'Perfume con precio en dólares', brand: 'Marca', size: 100, unit: 'ml',
+      category: 'niche', gender: 'unisex', minimumStock: 0, active: true,
+      prices: { emprendedor: { USD: 25, NIO: 9999 }, vip: { USD: 24 }, premium: { USD: 22 } },
+    }
+    assert.equal(await rpc('save_catalog_product', input), input.id)
+    const prices = (await db.query('select tier_code,currency,amount from public.product_prices where product_id=$1', [input.id])).rows
+    assert.equal(prices.length, 6)
+    for (const [tier, price] of Object.entries(input.prices)) {
+      assert.equal(Number(prices.find((p) => p.tier_code === tier && p.currency === 'USD').amount), price.USD)
+      assert.equal(Number(prices.find((p) => p.tier_code === tier && p.currency === 'NIO').amount), Math.round(price.USD * 37.1 * 100) / 100)
+    }
+    await assert.rejects(rpc('save_catalog_product', input), /Otro usuario/)
+    await assert.rejects(rpc('save_catalog_product', { ...input, revision: 1, prices: { ...input.prices, vip: { USD: -1 } } }), /precio/i)
+    assert.equal((await db.query('select revision from public.products where id=$1', [input.id])).rows[0].revision, 1)
+  })
+  await check('rate changes reprice the catalogue without rewriting issued documents or costs', async () => {
+    const id = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'
+    const doc = await rpc('create_document', invoice({ kind: 'proforma', validUntil: '2099-01-01', items: [{ productId: id, quantity: 2 }] }))
+    assert.equal(Number(doc.catalog_rate), 37.1)
+    assert.equal(Number(doc.total), 1855)
+    const costBefore = await average()
+    await db.query('select public.set_exchange_rate($1::numeric)', [38])
+    assert.equal(Number((await db.query("select amount from public.product_prices where product_id=$1 and tier_code='emprendedor' and currency='NIO'", [id])).rows[0].amount), 950)
+    const frozen = (await db.query('select catalog_rate,total from public.documents where id=$1', [doc.id])).rows[0]
+    assert.equal(Number(frozen.catalog_rate), 37.1)
+    assert.equal(Number(frozen.total), 1855)
+    assert.equal(await average(), costBefore)
   })
   console.log(`${checks} accounting PostgreSQL checks passed. No deployed database was accessed.`)
 } finally {

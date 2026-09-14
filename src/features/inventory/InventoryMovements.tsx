@@ -69,6 +69,19 @@ export function InventoryMovements({
       )
       return
     }
+    // Una salida o una merma mayor que lo contado dejaría el inventario en
+    // negativo: la base lo rechaza y el movimiento se pierde. Se detiene aquí,
+    // diciendo cuántas unidades hay, en lugar de devolver el error del servidor.
+    if (
+      quantity != null &&
+      (action.type === 'EXIT' || action.type === 'DAMAGED') &&
+      nextQuantity > quantity
+    ) {
+      setError(
+        `Solo hay ${quantity} ${quantity === 1 ? 'unidad' : 'unidades'} en ${labels.location[location]}. No puedes sacar más de lo contado.`,
+      )
+      return
+    }
     setBusy(true)
     setError('')
     try {

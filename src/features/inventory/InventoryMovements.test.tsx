@@ -70,6 +70,28 @@ it('el operador solo ve salidas y daños y no puede mover un saldo sin conteo', 
   expect(await screen.findByRole('alert')).toHaveTextContent('conteo inicial')
   expect(recordMovement).not.toHaveBeenCalled()
 })
+it('no deja sacar más unidades de las contadas en la ubicación', async () => {
+  // El catálogo de prueba deja el primer producto con 3 en tienda.
+  const { onRecorded } = await mount('operator')
+  const user = userEvent.setup()
+  await user.click(screen.getByRole('button', { name: 'Salida' }))
+  await user.type(screen.getByLabelText('Cantidad'), '5')
+  await user.type(screen.getByLabelText('Motivo'), 'Salida de prueba')
+  await user.click(screen.getByRole('button', { name: 'Confirmar movimiento' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent(
+    'Solo hay 3 unidades en Tienda',
+  )
+  expect(recordMovement).not.toHaveBeenCalled()
+  expect(onRecorded).not.toHaveBeenCalled()
+  // Con una cantidad que sí cabe, el mismo formulario llega a la base.
+  await user.clear(screen.getByLabelText('Cantidad'))
+  await user.type(screen.getByLabelText('Cantidad'), '3')
+  await user.click(screen.getByRole('button', { name: 'Confirmar movimiento' }))
+  await waitFor(() => expect(onRecorded).toHaveBeenCalledOnce())
+  expect(recordMovement).toHaveBeenCalledWith(
+    expect.objectContaining({ type: 'EXIT', quantity: 3, location: 'store' }),
+  )
+})
 it('no presenta acciones reales en demo', async () => {
   await mount('admin', true)
   expect(screen.queryByRole('button')).not.toBeInTheDocument()

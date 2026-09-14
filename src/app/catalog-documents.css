@@ -29,6 +29,27 @@
   padding: 12px 0;
   border-bottom: 1px solid #e8dfd4;
 }
+/* El precio en córdobas no se teclea: sale del de dólares por la tasa vigente.
+   Se enseña con el mismo peso que el campo de al lado, pero sin caja de
+   entrada, para que se lea como un resultado y no como algo por llenar. */
+.product-price-derived {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.product-price-derived span {
+  font-size: 12px;
+  color: var(--muted);
+}
+.product-price-derived strong {
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
+.product-price-derived small {
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.4;
+}
 .product-management-list {
   margin-top: 20px;
 }
@@ -217,6 +238,24 @@
 .letter-grand-total b {
   font-size: 19px;
   white-space: nowrap;
+}
+/* El mismo total en la otra moneda, bajo el recuadro: el cliente que pide el
+   cobro en dólares ve las dos cifras y la tasa con la que se cotizó. */
+.letter-summary .letter-equivalent {
+  align-items: baseline;
+  margin: 2px 0 12px;
+  color: #5f554e;
+}
+.letter-equivalent b {
+  font-weight: 600;
+  text-align: right;
+  white-space: nowrap;
+}
+.letter-equivalent small {
+  display: block;
+  font-weight: 400;
+  font-size: 10px;
+  color: #7c7069;
 }
 .letter-signatures {
   display: flex;

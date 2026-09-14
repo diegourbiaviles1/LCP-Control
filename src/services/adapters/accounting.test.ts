@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { AppError } from '../../lib/errors'
 import type {
   ExpenseInput,
-  PurchaseInput,
+  ShipmentInput,
 } from '../../features/reports/accounting'
 import { createAccountingAdapter, readReportPages } from './accounting'
 import { catalogAdapter } from './catalog'
@@ -143,26 +143,35 @@ describe('private accounting adapter', () => {
           },
         ],
       },
-      purchase_records: {
+      purchase_shipments: {
         data: [
           {
-            id: 'purchase',
+            id: 'shipment',
             request_id: 'request',
-            product_id: 'known',
-            location: 'store',
-            quantity: 10,
-            unit_price: '20',
-            freight_amount: '10',
-            tax_amount: '5',
-            recoverable_tax_amount: '2',
-            currency: 'USD',
-            exchange_rate: '36.62',
             incurred_on: '2026-09-10',
             supplier: 'Proveedor',
+            agency: 'Agencia',
             reference: 'F-1',
             note: '',
+            currency: 'USD',
+            exchange_rate: '36.62',
+            shipping_amount: '10',
+            goods_amount: '200',
+            units: 10,
+            shipping_per_unit: '1',
             created_at: '2026-09-10T12:00:00Z',
-            landed_unit_cost_nio: '780.006',
+            purchase_shipment_lines: [
+              {
+                id: 'line',
+                product_id: 'known',
+                location: 'store',
+                quantity: 10,
+                unit_price: '20',
+                goods_amount: '200',
+                shipping_share: '10',
+                landed_unit_cost_nio: '769.02',
+              },
+            ],
           },
         ],
       },
@@ -175,8 +184,6 @@ describe('private accounting adapter', () => {
             category: 'servicios',
             description: 'Luz',
             amount: '100',
-            tax_amount: '15',
-            recoverable_tax_amount: '15',
             currency: 'NIO',
             exchange_rate: '1',
             reference: 'F-2',
@@ -218,14 +225,20 @@ describe('private accounting adapter', () => {
       750.25,
       null,
     ])
-    expect(result.purchases[0]).toMatchObject({
-      unitPrice: 20,
+    expect(result.shipments[0]).toMatchObject({
+      agency: 'Agencia',
       exchangeRate: 36.62,
-      landedUnitCostNio: 780.006,
+      shippingAmount: 10,
+      units: 10,
+      shippingPerUnit: 1,
+    })
+    expect(result.shipments[0].lines[0]).toMatchObject({
+      unitPrice: 20,
+      shippingShare: 10,
+      landedUnitCostNio: 769.02,
     })
     expect(result.expenses[0]).toMatchObject({
       amount: 100,
-      taxAmount: 15,
       voidedAt: null,
     })
     expect(result.saleCosts[0]).toEqual({
@@ -269,13 +282,13 @@ describe('private accounting adapter', () => {
   })
   it('passes idempotency keys and entered amounts unchanged to atomic RPCs', async () => {
     const { adapter, rpc } = connection()
-    const purchase = { requestId: 'retry-key', unitPrice: 100 } as PurchaseInput
+    const shipment = { requestId: 'retry-key', shippingAmount: 100 } as ShipmentInput
     const expense = { requestId: 'expense-key', amount: 20 } as ExpenseInput
-    expect(await adapter.recordPurchase(purchase)).toBe('confirmed-id')
+    expect(await adapter.recordShipment(shipment)).toBe('confirmed-id')
     await adapter.recordExpense(expense)
     await adapter.voidExpense('expense-id', 'Registro duplicado')
-    expect(rpc).toHaveBeenNthCalledWith(1, 'record_purchase', {
-      p_input: purchase,
+    expect(rpc).toHaveBeenNthCalledWith(1, 'record_shipment', {
+      p_input: shipment,
     })
     expect(rpc).toHaveBeenNthCalledWith(2, 'record_expense', {
       p_input: expense,
@@ -311,7 +324,7 @@ describe('private accounting adapter', () => {
   it.each([catalogAdapter, demoAdapter])(
     'blocks every accounting write outside Supabase',
     async (adapter) => {
-      await expect(adapter.recordPurchase({} as PurchaseInput)).rejects.toThrow(
+      await expect(adapter.recordShipment({} as ShipmentInput)).rejects.toThrow(
         'vista local',
       )
       await expect(adapter.recordExpense({} as ExpenseInput)).rejects.toThrow(

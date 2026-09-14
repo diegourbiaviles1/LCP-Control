@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { accountingByMonth, accountingSummary, belowCostSales, catalogMargins, inventoryTurnover, marginRate, type AccountingSource, type ExpenseRecord, type PurchaseRecord } from './accounting'
+import { accountingByMonth, accountingSummary, belowCostSales, catalogMargins, inventoryTurnover, marginRate, type AccountingSource, type ExpenseRecord, type ShipmentRecord } from './accounting'
 import { accountingSheets } from './accountingExport'
 import { idleStock, movementsInRange, type ReportDocument, type ReportSource } from './model'
 
@@ -9,14 +9,16 @@ const invoice: ReportDocument = {
   currency: 'NIO', total: 1150, tier: 'vip', paymentMethod: 'cash', location: 'store',
   customerId: 'customer', customerName: 'Cliente', items: [{ productId: 'p', description: 'Perfume', quantity: 2, lineTotal: 1150 }],
 }
-const purchase: PurchaseRecord = {
-  id: 'purchase', requestId: 'request', productId: 'p', incurredOn: '2026-09-10', createdAt: '2026-09-10T18:00:00Z',
-  location: 'warehouse', quantity: 10, unitPrice: 40, freightAmount: 20, taxAmount: 30, recoverableTaxAmount: 20,
-  currency: 'NIO', exchangeRate: 1, supplier: 'Proveedor', reference: 'C1', note: 'Compra', landedUnitCostNio: 43,
+// Una caja de diez perfumes a 40 con 20 de envío: dos córdobas de peso por unidad.
+const shipment: ShipmentRecord = {
+  id: 'shipment', requestId: 'request', incurredOn: '2026-09-10', createdAt: '2026-09-10T18:00:00Z',
+  supplier: 'Proveedor', agency: 'Agencia', reference: 'C1', note: 'Pedido',
+  currency: 'NIO', exchangeRate: 1, shippingAmount: 20, goodsAmount: 400, units: 10, shippingPerUnit: 2,
+  lines: [{ id: 'line', productId: 'p', location: 'warehouse', quantity: 10, unitPrice: 40, goodsAmount: 400, shippingShare: 20, landedUnitCostNio: 42 }],
 }
 const expense: ExpenseRecord = {
   id: 'expense', requestId: 'erequest', incurredOn: '2026-09-11', createdAt: '2026-09-11T18:00:00Z',
-  category: 'servicios', description: 'Servicio', amount: 100, taxAmount: 15, recoverableTaxAmount: 5,
+  category: 'agua_luz', description: 'Servicio', amount: 100,
   currency: 'NIO', exchangeRate: 1, reference: 'G1', voidedAt: null, voidReason: null,
 }
 function source(accounting: Partial<AccountingSource> = {}): ReportSource {
@@ -26,7 +28,7 @@ function source(accounting: Partial<AccountingSource> = {}): ReportSource {
     accounting: {
       available: true, truncated: false,
       costs: [{ productId: 'p', averageCostNio: 999, updatedAt: '2026-09-15T18:00:00Z' }],
-      purchases: [structuredClone(purchase)], expenses: [structuredClone(expense)],
+      shipments: [structuredClone(shipment)], expenses: [structuredClone(expense)],
       saleCosts: [{ documentId: 'invoice', productId: 'p', quantity: 2, unitCostNio: 200, netRevenueNio: 1000, taxNio: 150 }],
       movementCosts: [{ movementId: 'loss', productId: 'p', type: 'DAMAGED', quantity: 1, unitCostNio: 60, createdAt: '2026-09-12T18:00:00Z' }],
       ...accounting,
@@ -35,12 +37,12 @@ function source(accounting: Partial<AccountingSource> = {}): ReportSource {
 }
 
 describe('contabilidad registrada', () => {
-  it('congela costos históricos y separa compras, impuestos recuperables, gastos y mermas', () => {
+  it('congela costos históricos y separa pedidos, envío, gastos y mermas', () => {
     const result = accountingSummary(source(), range)
     expect(result).toMatchObject({
       revenueNio: 1000, salesTaxNio: 150, costOfSalesNio: 400, grossProfitNio: 600,
-      expensesNio: 110, inventoryWriteOffNio: 60, netProfitNio: 430,
-      purchasesNio: 430, purchaseTaxNio: 30, expenseTaxNio: 15, recoverableTaxNio: 25,
+      expensesNio: 100, loanPaymentsNio: 0, inventoryWriteOffNio: 60, netProfitNio: 440,
+      purchasesNio: 420, purchaseGoodsNio: 400, purchaseShippingNio: 20, purchasedUnits: 10,
       inventoryCostNio: 3996, complete: true, coverage: 1,
     })
     expect(result.products[0].profitNio).toBe(600)
@@ -59,25 +61,46 @@ describe('contabilidad registrada', () => {
     value.accounting!.saleCosts[0].unitCostNio = 0
     expect(accountingSummary(value, range)).toMatchObject({ complete: true, coverage: 1, grossProfitNio: 1000 })
   })
-  it('usa la tasa guardada de cada compra y gasto, excluye gastos anulados', () => {
-    const value = source({ purchases: [{ ...purchase, currency: 'USD', exchangeRate: 36.5 }], expenses: [
+  it('usa la tasa guardada de cada pedido y gasto, excluye gastos anulados', () => {
+    const value = source({ shipments: [{ ...shipment, currency: 'USD', exchangeRate: 36.5 }], expenses: [
       { ...expense, currency: 'USD', exchangeRate: 36.5 },
       { ...expense, id: 'void', amount: 9999, voidedAt: '2026-09-13T18:00:00Z', voidReason: 'Duplicado' },
     ] })
     const totals = accountingSummary(value, range)
-    expect(totals.purchasesNio).toBe(15695)
-    expect(totals.expensesNio).toBe(4015)
-    expect(totals.recoverableTaxNio).toBe(912.5)
+    expect(totals.purchaseGoodsNio).toBe(14600)
+    expect(totals.purchaseShippingNio).toBe(730)
+    expect(totals.purchasesNio).toBe(15330)
+    expect(totals.expensesNio).toBe(3650)
+  })
+  it('el pago de préstamo se informa aparte y no baja el resultado; la mercadería no se cuenta dos veces', () => {
+    const value = source({ expenses: [
+      { ...expense, id: 'interes', category: 'interes_bancario', amount: 500 },
+      { ...expense, id: 'cuota', category: 'prestamo_bancario', amount: 7000 },
+      { ...expense, id: 'dgi', category: 'impuestos_dgi', amount: 300 },
+    ] })
+    const totals = accountingSummary(value, range)
+    // Sólo el interés, el impuesto y el gasto de ventas restan: la cuota, no.
+    expect(totals.expensesNio).toBe(800)
+    expect(totals.loanPaymentsNio).toBe(7000)
+    expect(totals.netProfitNio).toBe(1000 - 400 - 800 - 60)
+    expect(totals.expenseByAccount).toEqual([
+      { account: 'impuestos', amountNio: 300, deducts: true },
+      { account: 'prestamos', amountNio: 7000, deducts: false },
+      { account: 'financieros', amountNio: 500, deducts: true },
+      { account: 'ventas', amountNio: 0, deducts: true },
+      // La cuenta de gastos operativos es el pedido del período, no una fila tecleada.
+      { account: 'operativos', amountNio: 420, deducts: false },
+    ])
   })
   it('no mezcla el periodo anterior con el periodo seleccionado y excluye proformas', () => {
     const value = source()
     value.documents.push({ ...invoice, id: 'old', createdAt: '2026-08-15T18:00:00Z' }, { ...invoice, id: 'quote', kind: 'proforma' })
-    value.accounting!.purchases.push({ ...purchase, id: 'old', incurredOn: '2026-08-15' })
+    value.accounting!.shipments.push({ ...shipment, id: 'old', incurredOn: '2026-08-15' })
     value.accounting!.expenses.push({ ...expense, id: 'old', incurredOn: '2026-08-15' })
     const totals = accountingSummary(value, range)
     expect(totals.soldUnits).toBe(2)
-    expect(totals.purchasesNio).toBe(430)
-    expect(totals.expensesNio).toBe(110)
+    expect(totals.purchasesNio).toBe(420)
+    expect(totals.expensesNio).toBe(100)
     expect(idleStock([{ ...invoice, kind: 'proforma' }], value.inventory, 'vip', 'NIO')).toHaveLength(1)
   })
   it('evita utilidades completas si la fuente está truncada o no se ha activado', () => {
@@ -124,14 +147,14 @@ describe('contabilidad registrada', () => {
     const value = source({ saleCosts: [], movementCosts: [] })
     value.documents = []
     const rows = accountingByMonth(value, { from: '2026-08-15', to: '2026-09-30' })
-    expect(rows.map((row) => [row.month, row.totals.netProfitNio])).toEqual([['2026-08', 0], ['2026-09', -110]])
+    expect(rows.map((row) => [row.month, row.totals.netProfitNio])).toEqual([['2026-08', 0], ['2026-09', -100]])
   })
   it('las exportaciones conservan celdas vacías para utilidad desconocida y auditoría de gastos', () => {
     const value = source({ saleCosts: [], expenses: [{ ...expense, voidedAt: '2026-09-13T18:00:00Z', voidReason: 'Duplicado' }] })
     const sheets = accountingSheets(value, range, 'Prueba')
     expect(sheets.find((sheet) => sheet.name === 'Estado de resultados')!.rows.find((row) => row[0] === 'Resultado operativo registrado')![1]).toBeNull()
     expect(sheets.find((sheet) => sheet.name === 'Gastos')!.rows[0].slice(-2)).toEqual(['Anulado', 'Duplicado'])
-    expect(sheets.find((sheet) => sheet.name === 'Compras')!.rows[0][7]).toBe(40)
+    expect(sheets.find((sheet) => sheet.name === 'Pedidos')!.rows[0][8]).toBe(40)
   })
   it('señala la venta bajo costo y no inventa pérdidas donde falta el costo', () => {
     expect(belowCostSales(source(), range)).toEqual([])

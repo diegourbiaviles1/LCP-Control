@@ -25,7 +25,9 @@ export const documentDraftSchema = z.object({
   customer: z.string().max(200),
   customerId: z.string().nullable().default(null),
   phone: z.string().max(40).default(''),
-  taxId: z.string().max(100),
+  // 80 es el tope que acepta la base al emitir; un borrador con más caracteres
+  // se guardaría sin problema y fallaría recién al emitir el documento.
+  taxId: z.string().max(80),
   currency: z.enum(['NIO', 'USD']),
   taxRate: z.number().finite().min(0).max(100).optional(),
   exchangeRate: z.number().finite().positive().max(1000000).nullable().optional(),
@@ -80,8 +82,11 @@ export function isoDate(date: Date) {
 export function draftPreview(
   draft: DocumentDraft,
   issuer: DocumentRecord['issuer'],
+  /** Tasa vigente del catálogo, para imprimir el equivalente del borrador. */
+  catalogRate?: number | null,
 ): DocumentRecord {
   return {
+    catalogRate: catalogRate ?? null,
     id: draft.id,
     previewKind: 'draft',
     customerTaxId: draft.taxId,

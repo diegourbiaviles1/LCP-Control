@@ -1,11 +1,15 @@
 import { Brand } from '../../components/Brand'
 import { documentCopy, labels, type DocumentRecord } from '../../lib/domain'
 import { formatCurrency, formatDate } from '../../lib/format'
-import { priceTierLabels } from '../../lib/pricing'
+import { equivalentAmount, priceTierLabels } from '../../lib/pricing'
 import { includedTax } from './document'
 export function DocumentPrint({ document: d }: { document: DocumentRecord }) {
   const copy = documentCopy[d.kind]
   const tax = d.taxRate === undefined || d.taxRate === null ? null : includedTax(d.total, d.taxRate)
+  // La tasa con la que se cotizó el documento. Una factura vieja conserva la
+  // suya: el equivalente impreso es el de su día, no el del dólar de hoy.
+  const rate = d.catalogRate ?? (d.currency === 'USD' ? d.exchangeRate : null)
+  const equivalent = equivalentAmount(d.total, d.currency, rate)
   return (
     <article className={`letter-document letter-${d.kind}`}>
       <header className="letter-header">
@@ -112,6 +116,15 @@ export function DocumentPrint({ document: d }: { document: DocumentRecord }) {
             <span>TOTAL {d.currency}</span>
             <b>{formatCurrency(d.total, d.currency)}</b>
           </p>
+          {equivalent && (
+            <p className="letter-equivalent">
+              <span>Equivale a</span>
+              <b>
+                {formatCurrency(equivalent.amount, equivalent.currency)}
+                <small>a {rate} C$ por dólar</small>
+              </b>
+            </p>
+          )}
         </div>
       </section>
       <div className="letter-signatures">

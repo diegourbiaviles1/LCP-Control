@@ -15,7 +15,7 @@ function source(inventory: InventoryItem[], costed: string[] = []): ReportSource
     window: { from: '2026-09-01', to: '2026-09-30' }, truncated: false,
     customers: [], documents: [], movements: [], inventory,
     accounting: {
-      available: true, truncated: false, purchases: [], expenses: [], saleCosts: [],
+      available: true, truncated: false, shipments: [], expenses: [], saleCosts: [],
       costs: inventory.map((row) => ({
         productId: row.product.id,
         averageCostNio: costed.includes(row.product.id) ? 400 : null,
