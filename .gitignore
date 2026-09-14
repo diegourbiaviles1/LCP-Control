@@ -15,3 +15,5 @@ __pycache__/
 *.pyc
 output/
 tmp/
+Claude outputs/
+supabase/.temp/

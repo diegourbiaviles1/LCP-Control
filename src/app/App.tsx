@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Link, Navigate, Route, Routes } from 'react-router-dom'
 import { lazy, Suspense } from 'react'
 import { AppShell } from './AppShell'
 import { LoginPage } from '../features/auth/LoginPage'
@@ -15,6 +15,7 @@ import { ContactsPage } from '../features/ContactsPage'
 import { StaffPage, BusinessPage } from '../features/AdministrationPage'
 import { ActivatePage } from '../features/auth/ActivatePage'
 import { MovementHistory } from '../features/inventory/MovementHistory'
+import { ReportsPage } from '../features/reports/ReportsPage'
 import { DocumentHistory } from '../features/sales/DocumentHistory'
 import { useAccess } from './AccessContext'
 import { can, type Capability } from '../lib/permissions'
@@ -29,7 +30,23 @@ function AccessGate({
   return demo || can(role, permission) ? (
     children
   ) : (
-    <EmptyState title="No tienes permiso para acceder a esta pantalla." />
+    <EmptyState
+      title="No tienes permiso para esta pantalla."
+      description="Pídele acceso a un administrador si necesitas trabajar aquí."
+    />
+  )
+}
+// Fuera del panel no hay menú lateral ni barra inferior: sin un enlace de
+// vuelta, la única salida de una dirección equivocada es el botón del navegador.
+function NotFound() {
+  return (
+    <div className="state">
+      <h3>Página no encontrada</h3>
+      <p>La dirección no existe o la pantalla cambió de lugar.</p>
+      <Link className="button button-secondary" to="/">
+        Ir al inicio
+      </Link>
+    </div>
   )
 }
 const ScannerPage = lazy(() =>
@@ -100,6 +117,14 @@ export function App() {
       <Route path="products/:id/edit" element={<ProductEditorPage />} />
       <Route path="account" element={<AccountPage />} />
       <Route path="documents/example/:kind" element={<DocumentExamplePage />} />
+      <Route
+        path="reports"
+        element={
+          <AccessGate permission="finance.read">
+            <ReportsPage />
+          </AccessGate>
+        }
+      />
       <Route path="alerts" element={<AlertsPage />} />
     </>
   )
@@ -119,7 +144,7 @@ export function App() {
             {pages}
           </Route>
         )}
-        <Route path="*" element={<EmptyState title="Página no encontrada" />} />
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </Suspense>
   )

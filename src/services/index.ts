@@ -11,6 +11,12 @@ import {
   productInputSchema,
   type ProductInput,
 } from '../features/products/product'
+import type { ReportRange } from '../features/reports/model'
+import type {
+  ExpenseInput,
+  OpeningCostInput,
+  PurchaseInput,
+} from '../features/reports/accounting'
 export function createServices(provider: DataProvider) {
   return {
     mode: provider.mode,
@@ -44,9 +50,25 @@ export function createServices(provider: DataProvider) {
         })
       },
     },
+    reportService: {
+      getSource: (range: ReportRange) => provider.getReportSource(range),
+    },
+    accountingService: {
+      recordPurchase: (input: PurchaseInput) => provider.recordPurchase(input),
+      setOpeningCost: (input: OpeningCostInput) =>
+        provider.setOpeningCost(input),
+      recordExpense: (input: ExpenseInput) => provider.recordExpense(input),
+      voidExpense: (id: string, reason: string) =>
+        provider.voidExpense(id, reason),
+    },
+    settingsService: {
+      getExchangeRate: () => provider.getExchangeRate(),
+      saveExchangeRate: (rate: number) => provider.saveExchangeRate(rate),
+    },
     salesService: {
       getTodaySummary: () => provider.getTodaySummary(),
       getBusiness: () => provider.getBusiness(),
+      getExchangeRate: () => provider.getExchangeRate(),
       listCustomers: () => provider.listCustomers(),
       listDocuments: (kind: DocumentKind, limit?: number) =>
         provider.listDocuments(kind, limit),

@@ -17,6 +17,17 @@ import type {
   Product,
 } from '../../lib/domain'
 import type { DataProvider } from '../contracts'
+import {
+  accountingSchemaMissing,
+  createAccountingAdapter,
+  readReportPages,
+} from './accounting'
+import {
+  addDays,
+  previousRange,
+  type ReportRange,
+  type ReportSource,
+} from '../../features/reports/model'
 
 interface PriceRow {
   tier_code: PriceTier
@@ -55,6 +66,8 @@ interface DocumentItemRow {
   line_total: number | string
 }
 interface DocumentRow {
+  exchange_rate?: number | string | null
+  tax_rate?: number | string | null
   customer_tax_id?: string
   items?: DocumentItemRow[] | null
   id: string
@@ -82,6 +95,10 @@ inventory_balances(location,quantity)`
 const documentSelect = `id,kind,number,customer_id,customer_name,customer_phone,issuer,tier_code,
 currency,total,location,valid_until,payment_method,notes,created_at,customer_tax_id,
 document_items(id,product_id,description,quantity,unit_price,line_total)`
+const documentAccountingColumns = ',exchange_rate,tax_rate'
+function missingDocumentColumns(error: { code?: string } | null) {
+  return error?.code === '42703' || error?.code === 'PGRST204'
+}
 
 // Read-only screens remain usable while the new migration is being applied.
 // Editing still fails explicitly until the write RPCs and columns exist.
@@ -242,6 +259,8 @@ function toDocument(row: DocumentRow): DocumentRecord {
     tier: row.tier_code,
     currency: row.currency,
     total: amount(row.total),
+    exchangeRate: row.exchange_rate == null ? null : amount(row.exchange_rate),
+    taxRate: row.tax_rate == null ? undefined : amount(row.tax_rate),
     location: row.location,
     validUntil: row.valid_until,
     paymentMethod: row.payment_method,
@@ -257,6 +276,8 @@ function toDocument(row: DocumentRow): DocumentRecord {
     })),
   }
 }
+
+const accounting = createAccountingAdapter(client, toAppError)
 
 export const supabaseAdapter: DataProvider = {
   mode: 'supabase',
@@ -354,6 +375,28 @@ export const supabaseAdapter: DataProvider = {
       )
     return data as BusinessSettings
   },
+  // Sin la migración de la tasa, la pantalla sigue funcionando: se pide a mano
+  // en cada documento, que es como se trabajaba antes.
+  async getExchangeRate() {
+    const { data, error } = await client()
+      .from('exchange_rates')
+      .select('usd_to_nio,updated_at')
+      .limit(1)
+      .maybeSingle()
+    if (error) {
+      if (accountingSchemaMissing(error)) return null
+      fail(error)
+    }
+    if (!data) return null
+    const value = Number(data.usd_to_nio)
+    return Number.isFinite(value) && value > 0
+      ? { usdToNio: value, updatedAt: data.updated_at as string }
+      : null
+  },
+  async saveExchangeRate(rate: number) {
+    const { error } = await client().rpc('set_exchange_rate', { p_rate: rate })
+    if (error) fail(error)
+  },
   async listCustomers() {
     const { data, error } = await client()
       .from('customers')
@@ -376,14 +419,18 @@ export const supabaseAdapter: DataProvider = {
     })) satisfies CustomerRecord[]
   },
   async listDocuments(kind, limit = 25) {
-    const { data, error } = await client()
-      .from('documents')
-      .select(documentSelect)
-      .eq('kind', kind)
-      .order('created_at', { ascending: false })
-      .limit(limit)
-    if (error) fail(error)
-    return ((data ?? []) as unknown as DocumentRow[]).map(toDocument)
+    const query = (selection: string) =>
+      client()
+        .from('documents')
+        .select(selection)
+        .eq('kind', kind)
+        .order('created_at', { ascending: false })
+        .limit(limit)
+    let result = await query(documentSelect + documentAccountingColumns)
+    if (missingDocumentColumns(result.error))
+      result = await query(documentSelect)
+    if (result.error) fail(result.error)
+    return ((result.data ?? []) as unknown as DocumentRow[]).map(toDocument)
   },
   async createDocument(input: NewDocument) {
     // requestId makes the call idempotent: a retry returns the same document
@@ -398,6 +445,8 @@ export const supabaseAdapter: DataProvider = {
         customerPhone: input.customerPhone ?? null,
         tier: input.tier,
         currency: input.currency,
+        exchangeRate: input.exchangeRate ?? null,
+        taxRate: input.taxRate ?? 0,
         location: input.location ?? null,
         paymentMethod: input.paymentMethod ?? null,
         validUntil: input.validUntil ?? null,
@@ -407,6 +456,154 @@ export const supabaseAdapter: DataProvider = {
     })
     if (error) fail(error)
     return toDocument(data as unknown as DocumentRow)
+  },
+  recordPurchase: accounting.recordPurchase,
+  setOpeningCost: accounting.setOpeningCost,
+  recordExpense: accounting.recordExpense,
+  voidExpense: accounting.voidExpense,
+  // Managua no aplica horario de verano, así que el desfase es fijo: el día del
+  // negocio va de las 00:00 a las 24:00 en -06:00, no en UTC.
+  async getReportSource(range: ReportRange): Promise<ReportSource> {
+    // Se carga también el periodo anterior completo: la comparación contra el
+    // mes pasado y los clientes que dejaron de comprar se calculan con él.
+    const window = { from: previousRange(range).from, to: range.to }
+    const from = new Date(`${window.from}T00:00:00-06:00`).toISOString()
+    const until = new Date(
+      `${addDays(range.to, 1)}T00:00:00-06:00`,
+    ).toISOString()
+    const reportDocumentSelect =
+      'id,kind,number,created_at,currency,total,tier_code,payment_method,location,customer_id,customer_name,document_items(product_id,description,quantity,line_total)'
+    async function documentRows() {
+      const query = (selection: string) =>
+        readReportPages<DocumentRow>((start, end) =>
+          client()
+            .from('documents')
+            .select(selection, { count: 'exact' })
+            .gte('created_at', from)
+            .lt('created_at', until)
+            .order('created_at')
+            .order('id')
+            .range(start, end),
+        )
+      try {
+        return await query(reportDocumentSelect + documentAccountingColumns)
+      } catch (error) {
+        if (!missingDocumentColumns(error as { code?: string })) throw error
+        return query(reportDocumentSelect)
+      }
+    }
+    async function inventoryRows() {
+      const query = (selection: string) =>
+        readReportPages<ProductRow>((start, end) =>
+          client()
+            .from('products')
+            .select(selection, { count: 'exact' })
+            .order('id')
+            .range(start, end),
+        )
+      try {
+        return await query(productSelect)
+      } catch (error) {
+        if (!missingDocumentColumns(error as { code?: string })) throw error
+        return query(productSelect.replace('image_path,revision,', ''))
+      }
+    }
+    type CustomerRow = { id: string; name: string; created_at: string }
+    type MovementRow = {
+      id: string
+      product_id: string
+      type: string
+      quantity: number
+      before_quantity: number | null
+      after_quantity: number
+      created_at: string
+    }
+    const results = await Promise.allSettled([
+      documentRows(),
+      readReportPages<CustomerRow>((start, end) =>
+        client()
+          .from('customers')
+          .select('id,name,created_at', { count: 'exact' })
+          .order('id')
+          .range(start, end),
+      ),
+      readReportPages<MovementRow>((start, end) =>
+        client()
+          .from('inventory_movements')
+          .select(
+            'id,product_id,type,quantity,before_quantity,after_quantity,created_at',
+            { count: 'exact' },
+          )
+          .gte('created_at', from)
+          .lt('created_at', until)
+          .order('created_at')
+          .order('id')
+          .range(start, end),
+      ),
+      inventoryRows(),
+      accounting.getSource(window),
+    ])
+    for (const result of results) {
+      if (result.status === 'rejected') {
+        if (result.reason instanceof AppError) throw result.reason
+        fail(result.reason)
+      }
+    }
+    // Inspect every read before unwrapping; a failed source cannot become zeros.
+    const unwrap = <T>(result: PromiseSettledResult<T>): T => {
+      if (result.status === 'rejected') throw result.reason
+      return result.value
+    }
+    const documents = unwrap(results[0])
+    const customers = unwrap(results[1])
+    const movements = unwrap(results[2])
+    const inventory = unwrap(results[3])
+    const financial = unwrap(results[4])
+    await signImages(inventory.rows)
+    return {
+      documents: documents.rows.map((row) => ({
+        id: row.id,
+        kind: row.kind,
+        number: row.number,
+        createdAt: row.created_at,
+        currency: row.currency,
+        total: amount(row.total),
+        exchangeRate:
+          row.exchange_rate == null ? null : amount(row.exchange_rate),
+        taxRate: row.tax_rate == null ? undefined : amount(row.tax_rate),
+        tier: row.tier_code,
+        paymentMethod: row.payment_method,
+        location: row.location,
+        customerId: row.customer_id,
+        customerName: row.customer_name,
+        items: (row.document_items ?? []).map((item) => ({
+          productId: item.product_id,
+          description: item.description,
+          quantity: item.quantity,
+          lineTotal: amount(item.line_total),
+        })),
+      })),
+      customers: customers.rows.map((row) => ({
+        id: row.id,
+        name: row.name,
+        createdAt: row.created_at,
+      })),
+      movements: movements.rows.map((row) => ({
+        id: row.id,
+        productId: row.product_id,
+        type: row.type,
+        quantity: row.quantity,
+        beforeQuantity: row.before_quantity,
+        afterQuantity: row.after_quantity,
+        createdAt: row.created_at,
+      })),
+      inventory: inventory.rows.map(toItem),
+      accounting: financial,
+      window,
+      truncated: [documents, customers, movements, inventory, financial].some(
+        (result) => result.truncated,
+      ),
+    }
   },
   async recordMovement(input: MovementRequest) {
     const { data, error } = await client().rpc('record_inventory_movement', {

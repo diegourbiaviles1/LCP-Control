@@ -38,14 +38,25 @@ describe('synthetic local catalog', () => {
     ).toBe(true)
   })
   it('does not turn unknown stock into zero or low-stock alerts', async () => {
-    const items = await catalogAdapter.getInventory()
+    // La vista local llega contada; lo que no puede pasar es que un saldo sin
+    // contar se lea como cero, así que la invariante se prueba sobre una copia
+    // sin conteo del mismo catálogo.
+    const counted = await catalogAdapter.getInventory()
+    expect(counted.every((item) => totalStock(item) !== null)).toBe(true)
+    const items = counted.map((item) => ({
+      ...item,
+      quantities: { store: null, warehouse: null },
+    }))
     expect(
       items.every(
         (item) => totalStock(item) === null && stockStatus(item) === 'unknown',
       ),
     ).toBe(true)
     expect(
-      await createServices(catalogAdapter).inventoryService.getLowStock(),
+      await createServices({
+        ...catalogAdapter,
+        getInventory: async () => items,
+      }).inventoryService.getLowStock(),
     ).toEqual([])
     expect(filterInventory(items, { ...emptyFilters, stock: 'out' })).toEqual(
       [],

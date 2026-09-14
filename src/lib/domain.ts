@@ -83,6 +83,14 @@ export interface BusinessSettings {
   address: string
   phone: string
 }
+/**
+ * Tasa propuesta, no histórica: cada factura, compra y gasto guarda la suya al
+ * registrarse. Cambiarla aquí no altera ninguna operación ya emitida.
+ */
+export interface ExchangeRate {
+  usdToNio: number
+  updatedAt: string | null
+}
 export interface CustomerRecord {
   id: string
   name: string
@@ -101,6 +109,10 @@ export interface DocumentItemRecord {
   lineTotal: number
 }
 export interface DocumentRecord {
+  /** NIO per unit of document currency, saved at issuance. */
+  exchangeRate?: number | null
+  /** Percentage included in the displayed selling prices. */
+  taxRate?: number
   previewKind?: 'draft' | 'example'
   customerTaxId?: string
   id: string
@@ -125,6 +137,8 @@ export interface NewDocumentItem {
   quantity: number
 }
 export interface NewDocument {
+  exchangeRate?: number
+  taxRate?: number
   customerTaxId?: string
   requestId: string
   kind: DocumentKind
@@ -189,7 +203,7 @@ export const documentCopy: Record<
     prefix: 'FAC-',
     subtitle: 'Cobra y descuenta del inventario.',
     notice:
-      'Al emitirla se descuentan las existencias de la ubicación elegida y queda registrada en el historial. No es un comprobante fiscal y no calcula impuestos.',
+      'Al emitirla se descuentan las existencias y se registra el impuesto incluido según la tasa indicada. Es un documento de control administrativo, no un comprobante fiscal.',
   },
   proforma: {
     title: 'Proformas',

@@ -2,7 +2,6 @@ import { Link } from 'react-router-dom'
 import {
   ArrowRight,
   Package,
-  ScanLine,
   ReceiptText,
   Truck,
   Warehouse,
@@ -14,6 +13,7 @@ import { useQuery } from '../../lib/useQuery'
 import { formatDate } from '../../lib/format'
 import { useAccess } from '../../app/AccessContext'
 import { Reflection } from './Reflection'
+import { HomeCharts } from './HomeCharts'
 import { can } from '../../lib/permissions'
 const actions = [
   ['/products', 'Catálogo', 'Consultar perfumes, fotos y precios.', Package],
@@ -92,6 +92,7 @@ export function DashboardPage() {
           </Card>
         ))}
       </div>
+      {can(role, 'finance.read') || demo ? <HomeCharts /> : null}
       <div className="home-actions">
         {actions
           .filter(
@@ -112,22 +113,12 @@ export function DashboardPage() {
             </Link>
           ))}
       </div>
-      <Link className="scan-shortcut" to={`${base}/scanner`}>
-        <ScanLine size={28} />
-        <div>
-          <h2>Buscar por código</h2>
-          <p>
-            Escanea una etiqueta interna o introduce el código del producto.
-          </p>
-        </div>
-        <ArrowRight size={20} />
-      </Link>
-      <p className="workspace-disclaimer">
-        Los precios se consultan por lista y moneda.{' '}
-        {pending
-          ? 'Completa los conteos pendientes desde Inventario.'
-          : 'Las existencias se actualizan con los movimientos confirmados.'}
-      </p>
+      {pending > 0 && (
+        <p className="workspace-disclaimer">
+          Hay {pending} saldo(s) sin contar. Complétalos desde Inventario para
+          que las existencias y el inventario valorado cuadren.
+        </p>
+      )}
     </>
   )
 }

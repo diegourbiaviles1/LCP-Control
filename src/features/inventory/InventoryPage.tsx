@@ -72,6 +72,10 @@ export function InventoryPage() {
     ),
     filters,
   )
+  // El guion sólo necesita explicarse cuando aparece en pantalla.
+  const uncounted = items.some(
+    ({ quantities }) => quantities.store === null || quantities.warehouse === null,
+  )
   const perPage = 24
   const pages = Math.max(1, Math.ceil(items.length / perPage))
   const currentPage = Math.min(page, pages)
@@ -227,8 +231,9 @@ export function InventoryPage() {
           </div>
           <div className="filter-note">
             <span>
-              — indica que el conteo aún no está registrado. Puedes actualizar
-              fotos, precios y cantidades desde Editar.
+              {uncounted
+                ? '— indica que el conteo aún no está registrado. Puedes registrarlo desde Editar.'
+                : ''}
             </span>
             <Button
               variant="ghost"

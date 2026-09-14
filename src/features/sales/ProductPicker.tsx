@@ -16,7 +16,6 @@ import type {
   PriceTier,
 } from '../../lib/domain'
 import { formatCurrency } from '../../lib/format'
-import { priceTierLabels } from '../../lib/pricing'
 const normalize = (s: string) =>
   s
     .normalize('NFD')
@@ -70,10 +69,6 @@ export function ProductPicker({
       <div className="picker-caption">
         <span>
           {matches.length} {matches.length === 1 ? 'perfume' : 'perfumes'}
-        </span>
-        <span>
-          {priceTierLabels[tier]} ·{' '}
-          {currency === 'NIO' ? 'Córdobas' : 'Dólares'}
         </span>
       </div>
       <div className="picker-grid" aria-label="Productos disponibles">

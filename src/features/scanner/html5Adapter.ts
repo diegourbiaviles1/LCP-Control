@@ -52,9 +52,13 @@ export function createHtml5Adapter(elementId: string): ScannerAdapter {
             { facingMode: 'environment' },
             {
               fps: 8,
+              // Las etiquetas del catálogo son CODE128: un código de una sola
+              // dimensión necesita ancho, no un recuadro cuadrado. Limitar la
+              // ventana a 280 px dejaba barras de dos píxeles y la lectura
+              // fallaba en pantallas anchas aunque el código se viera centrado.
               qrbox: (width, height) => ({
-                width: Math.min(width * 0.8, 280),
-                height: Math.min(height * 0.65, 180),
+                width: Math.max(200, Math.floor(width * 0.9)),
+                height: Math.max(140, Math.floor(height * 0.6)),
               }),
               aspectRatio: 1.333,
             },

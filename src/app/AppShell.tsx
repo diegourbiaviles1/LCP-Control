@@ -13,6 +13,7 @@ import {
   Menu,
   X,
   UserRound,
+  ChartColumn,
 } from 'lucide-react'
 import { useAuth } from '../features/auth/AuthContext'
 import { AccessContext } from './AccessContext'
@@ -26,6 +27,7 @@ const links = [
   ['/scanner', 'Escanear', ScanLine],
   ['/sales', 'Facturación', ShoppingBag],
   ['/proformas', 'Proformas', FileText],
+  ['/reports', 'Reportes', ChartColumn],
   ['/alerts', 'Alertas', Bell],
   ['/suppliers', 'Proveedores', Truck],
   ['/account', 'Mi cuenta', UserRound],
@@ -99,6 +101,7 @@ export function AppShell({ demo = false }: { demo?: boolean }) {
                   '/proformas': 'sale.create',
                   '/customers': 'customer.read',
                   '/suppliers': 'supplier.read',
+                  '/reports': 'finance.read',
                   '/staff': 'staff.manage',
                   '/settings': 'settings.manage',
                 }
@@ -175,13 +178,15 @@ export function AppShell({ demo = false }: { demo?: boolean }) {
               </span>
             </div>
           </header>
+          {/* Un aside es una región con nombre: sin landmark este aviso queda
+              fuera del recorrido por regiones de un lector de pantalla. */}
           {demo && (
-            <div className="demo-banner">
+            <aside className="demo-banner" aria-label="Aviso de vista local">
               <span>
                 Vista local · Los borradores se guardan únicamente en este
                 navegador.
               </span>
-            </div>
+            </aside>
           )}
           {!online && (
             <div role="alert" className="offline-banner">

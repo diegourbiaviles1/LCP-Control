@@ -1,6 +1,11 @@
 import type { Category, Gender, InventoryItem, Product } from '../../lib/domain'
 import type { DataProvider } from '../contracts'
 import { localWrites } from './local'
+import {
+  previousRange,
+  type ReportRange,
+  type ReportSource,
+} from '../../features/reports/model'
 // Catálogo sintético de la vista local y de las pruebas: marcas, nombres, códigos
 // y precios inventados. Las listas reales viven sólo en Supabase, detrás de RLS;
 // nunca se empaquetan para el navegador ni se versionan.
@@ -54,9 +59,14 @@ export const catalogProducts: Product[] = brands.flatMap(
       } satisfies Product
     }),
 )
-const items: InventoryItem[] = catalogProducts.map((product) => ({
+/**
+ * Existencias de muestra. La vista local las trae contadas para que el inicio,
+ * el inventario y los reportes cuenten la misma historia: sin conteo no hay
+ * inventario valorado, ni rotación, ni facturación que probar.
+ */
+const items: InventoryItem[] = catalogProducts.map((product, index) => ({
   product,
-  quantities: { warehouse: null, store: null },
+  quantities: { warehouse: 4 + ((index * 5) % 23), store: 3 + (index % 7) },
 }))
 export const catalogAdapter: DataProvider = {
   mode: 'demo',
@@ -70,6 +80,48 @@ export const catalogAdapter: DataProvider = {
           product.barcode === code || product.manufacturerBarcode === code,
       ) ?? null,
     )
+  },
+  async getReportSource(range: ReportRange): Promise<ReportSource> {
+    // La importación es diferida: las ventas de muestra no viajan en el paquete
+    // principal, sólo se generan si alguien abre los reportes locales.
+    const { syntheticSales } = await import('./catalogSales')
+    const sales = syntheticSales()
+    const window = { from: previousRange(range).from, to: range.to }
+    const inRange = (value: string) => {
+      const day = value.slice(0, 10)
+      return day >= window.from && day <= window.to
+    }
+    const documents = sales.documents.filter((document) =>
+      inRange(document.createdAt),
+    )
+    const visible = new Set(documents.map((document) => document.id))
+    return {
+      documents,
+      customers: sales.customers,
+      movements: sales.movements.filter((movement) =>
+        inRange(movement.createdAt),
+      ),
+      inventory: structuredClone(items),
+      window,
+      truncated: false,
+      // Igual que la consulta real: sólo el tramo pedido, y los costos de venta
+      // sólo de las facturas que viajan con él.
+      accounting: {
+        ...sales.accounting,
+        purchases: sales.accounting.purchases.filter((row) =>
+          inRange(row.incurredOn),
+        ),
+        expenses: sales.accounting.expenses.filter((row) =>
+          inRange(row.incurredOn),
+        ),
+        saleCosts: sales.accounting.saleCosts.filter((row) =>
+          visible.has(row.documentId),
+        ),
+        movementCosts: sales.accounting.movementCosts?.filter((row) =>
+          inRange(row.createdAt),
+        ),
+      },
+    }
   },
   async getTodaySummary() {
     return { count: 0, totals: { NIO: 0, USD: 0 } }

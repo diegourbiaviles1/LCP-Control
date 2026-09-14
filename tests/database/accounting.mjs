@@ -1,0 +1,277 @@
+// Runs the actual migrations in disposable PostgreSQL, never a deployed service.
+import { PGlite } from '@electric-sql/pglite'
+import { readFile, readdir } from 'node:fs/promises'
+import assert from 'node:assert/strict'
+
+const db = new PGlite()
+const admin = '11111111-1111-4111-8111-111111111111'
+const operator = '22222222-2222-4222-8222-222222222222'
+const warehouse = '33333333-3333-4333-8333-333333333333'
+const viewer = '44444444-4444-4444-8444-444444444444'
+const outsider = '55555555-5555-4555-8555-555555555555'
+const product = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+const legacy = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+const empty = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+const unknown = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+let checks = 0
+async function check(name, action) {
+  await action()
+  checks++
+  console.log(`OK ${name}`)
+}
+async function identity(uid, role = 'authenticated') {
+  await db.exec('reset role')
+  await db.query("select set_config('request.jwt.claim.sub',$1,false)", [uid])
+  await db.exec(`set role ${role}`)
+}
+async function rpc(name, input) {
+  return (await db.query(`select public.${name}($1::jsonb) as result`, [JSON.stringify(input)])).rows[0].result
+}
+async function rows(table) {
+  return (await db.query(`select * from public.${table}`)).rows
+}
+async function average(id = product) {
+  const result = (await db.query('select average_cost_nio from public.product_costs where product_id=$1', [id])).rows[0]
+  return result?.average_cost_nio == null ? null : Number(result.average_cost_nio)
+}
+async function quantity(id = product, location = 'store') {
+  return (await db.query('select quantity from public.inventory_balances where product_id=$1 and location=$2', [id, location])).rows[0].quantity
+}
+const purchase = (changes = {}) => ({
+  requestId: crypto.randomUUID(), productId: product, location: 'store', quantity: 10,
+  unitPrice: 100, freightAmount: 100, taxAmount: 150, recoverableTaxAmount: 100,
+  currency: 'NIO', exchangeRate: 1, incurredOn: '2026-01-01', supplier: 'Proveedor',
+  reference: 'COM-001', note: 'Factura de compra', ...changes,
+})
+const opening = (changes = {}) => ({
+  requestId: crypto.randomUUID(), productId: product, unitCost: 50, currency: 'NIO',
+  exchangeRate: 1, note: 'Costo respaldado por factura original', ...changes,
+})
+const invoice = (changes = {}) => ({
+  requestId: crypto.randomUUID(), kind: 'invoice', customerName: 'Cliente contabilidad',
+  tier: 'emprendedor', currency: 'NIO', location: 'store', paymentMethod: 'cash', notes: '',
+  taxRate: 15, items: [{ productId: product, quantity: 2 }], ...changes,
+})
+const movement = (changes = {}) => ({
+  requestId: crypto.randomUUID(), productId: product, location: 'store', type: 'DAMAGED',
+  quantity: 1, note: 'Frasco roto', ...changes,
+})
+const expense = (changes = {}) => ({
+  requestId: crypto.randomUUID(), incurredOn: '2026-01-01', category: 'servicios',
+  description: 'Servicio eléctrico', amount: 100, taxAmount: 15, recoverableTaxAmount: 10,
+  currency: 'NIO', exchangeRate: 1, reference: 'REC-001', ...changes,
+})
+
+try {
+  await db.exec(`create role anon; create role authenticated;
+    create schema auth; create table auth.users(id uuid primary key,email text);
+    create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;
+    grant usage on schema auth to authenticated,anon; grant execute on function auth.uid() to authenticated,anon;
+    create schema storage;
+    create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);
+    create table storage.objects(id uuid primary key default gen_random_uuid(),bucket_id text,name text,unique(bucket_id,name));
+    alter table storage.objects enable row level security;
+    grant usage on schema storage to authenticated,anon;
+    grant select,insert,delete on storage.objects to authenticated;
+    create function storage.foldername(text) returns text[] language sql immutable as $$ select string_to_array($1,'/') $$;
+  `)
+  await db.query('insert into auth.users(id) values($1),($2),($3),($4),($5)', [admin, operator, warehouse, viewer, outsider])
+  for (const file of (await readdir('supabase/migrations')).sort()) {
+    if (file.endsWith('.sql') && !file.includes('harden_platform_function_grants')) {
+      await db.exec(await readFile(`supabase/migrations/${file}`, 'utf8'))
+    }
+  }
+  await db.query("insert into public.staff_members(user_id,display_name,role) values($1,'Admin','admin'),($2,'Operator','operator'),($3,'Warehouse','warehouse'),($4,'Viewer','viewer')", [admin, operator, warehouse, viewer])
+  await db.exec("insert into public.business_settings(name) values('Pruebas contables'); insert into public.brands(name) values('Marca');")
+  for (const id of [product, legacy, empty, unknown]) {
+    await db.query("insert into public.products(id,sku,name,brand_id) values($1::uuid,$1::text,'Perfume',(select id from public.brands limit 1))", [id])
+    await db.query("insert into public.product_prices(product_id,tier_code,currency,amount) values($1,'emprendedor','NIO',115),($1,'emprendedor','USD',10)", [id])
+    await db.query("insert into public.inventory_balances(product_id,location,quantity) values($1,'store',$2),($1,'warehouse',$3)", [id, id === empty ? 0 : 10, id === unknown ? null : 0])
+  }
+  await identity(admin)
+
+  await check('existing selling prices never become costs and unknown counts block opening/purchases', async () => {
+    assert.equal(await average(), null)
+    await assert.rejects(rpc('set_opening_cost', opening({ productId: unknown })), /conteo/)
+    await assert.rejects(rpc('record_purchase', purchase({ productId: unknown })), /conteo/)
+    assert.equal((await rows('purchase_records')).length, 0)
+  })
+  await check('legacy sales freeze unknown cost without deriving it from sale prices', async () => {
+    const doc = await rpc('create_document', invoice({ items: [{ productId: legacy, quantity: 1 }] }))
+    const snapshot = (await rows('document_item_costs')).find((r) => r.document_id === doc.id)
+    assert.equal(snapshot.unit_cost_nio, null)
+    assert.equal(Number(snapshot.net_revenue_nio), 100)
+    assert.equal(Number(snapshot.tax_nio), 15)
+  })
+  await check('explicit opening basis is idempotent, audited and cannot silently overwrite known cost', async () => {
+    const input = opening()
+    const id = await rpc('set_opening_cost', input)
+    assert.equal(await rpc('set_opening_cost', input), id)
+    assert.equal(await average(), 50)
+    assert.equal((await rows('opening_cost_records'))[0].quantity, 10)
+    await assert.rejects(rpc('set_opening_cost', { ...input, unitCost: 51 }), /otros datos/)
+    await assert.rejects(rpc('set_opening_cost', opening()), /ya tiene costo/)
+    assert.equal((await rows('opening_cost_records')).length, 1)
+  })
+  await check('weighted landed cost excludes recoverable tax and purchase updates stock exactly once', async () => {
+    const input = purchase()
+    const id = await rpc('record_purchase', input)
+    assert.equal(await rpc('record_purchase', input), id)
+    assert.equal(await quantity(), 20)
+    assert.equal(await average(), 82.5)
+    assert.equal(Number((await rows('purchase_records'))[0].landed_unit_cost_nio), 115)
+    await assert.rejects(rpc('record_purchase', { ...input, quantity: 11 }), /otros datos/)
+    assert.equal((await rows('purchase_records')).length, 1)
+  })
+  await check('sales freeze average and included taxes before stock deduction', async () => {
+    const input = invoice()
+    const doc = await rpc('create_document', input)
+    assert.equal((await rpc('create_document', input)).id, doc.id)
+    const snapshot = (await rows('document_item_costs')).find((r) => r.document_id === doc.id)
+    assert.equal(Number(snapshot.unit_cost_nio), 82.5)
+    assert.equal(Number(snapshot.net_revenue_nio), 200)
+    assert.equal(Number(snapshot.tax_nio), 30)
+    assert.equal(await quantity(), 18)
+    assert.equal((await rows('inventory_movement_costs')).length, 0)
+  })
+  await check('USD purchase converts once and weights the remaining stock', async () => {
+    await rpc('record_purchase', purchase({ currency: 'USD', exchangeRate: 36.5, quantity: 2, unitPrice: 3, freightAmount: 0, taxAmount: 0, recoverableTaxAmount: 0 }))
+    assert.equal(await quantity(), 20)
+    assert.equal(await average(), 85.2)
+    assert.equal(Number((await rows('document_item_costs')).find((r) => Number(r.unit_cost_nio) === 82.5).unit_cost_nio), 82.5)
+  })
+  await check('USD invoices require explicit FX; failed invoice rolls back number, stock and snapshots', async () => {
+    const before = (await rows('documents')).length
+    const snapshots = (await rows('document_item_costs')).length
+    await assert.rejects(rpc('create_document', invoice({ currency: 'USD' })), /exchangeRate/)
+    assert.equal((await rows('documents')).length, before)
+    assert.equal((await rows('document_item_costs')).length, snapshots)
+    assert.equal(await quantity(), 20)
+    const doc = await rpc('create_document', invoice({ currency: 'USD', exchangeRate: 36.5, taxRate: 0, items: [{ productId: product, quantity: 1 }] }))
+    const row = (await rows('document_item_costs')).find((r) => r.document_id === doc.id)
+    assert.equal(Number(row.net_revenue_nio), 365)
+    assert.equal(Number(row.tax_nio), 0)
+  })
+  await check('invalid invoice quantities and missing stock cannot partially deduct products', async () => {
+    const before = await quantity()
+    await assert.rejects(rpc('create_document', invoice({ items: [{ productId: product, quantity: 1 }, { productId: empty, quantity: 1 }] })), /insuficientes/)
+    assert.equal(await quantity(), before)
+    await assert.rejects(rpc('create_document', invoice({ taxRate: -15 })), /inválido/)
+    assert.equal(await quantity(), before)
+  })
+  await check('loss snapshots cover damage, exits and negative adjustments without changing average', async () => {
+    await rpc('record_inventory_movement', movement())
+    await rpc('record_inventory_movement', movement({ type: 'EXIT', quantity: 2 }))
+    await rpc('record_inventory_movement', movement({ type: 'ADJUSTMENT', quantity: 14 }))
+    const losses = await rows('inventory_movement_costs')
+    assert.deepEqual(losses.map((r) => r.quantity), [1, 2, 2])
+    assert.ok(losses.every((r) => Number(r.unit_cost_nio) === 85.2))
+    assert.equal(await average(), 85.2)
+  })
+  await check('uncosted incoming stock invalidates average and future sales preserve missing basis', async () => {
+    await rpc('record_inventory_movement', movement({ type: 'ENTRY', quantity: 1 }))
+    assert.equal(await average(), null)
+    const doc = await rpc('create_document', invoice({ items: [{ productId: product, quantity: 1 }] }))
+    assert.equal((await rows('document_item_costs')).find((r) => r.document_id === doc.id).unit_cost_nio, null)
+    await rpc('record_inventory_movement', movement())
+    assert.equal((await rows('inventory_movement_costs')).at(-1).unit_cost_nio, null)
+    await rpc('set_opening_cost', opening({ unitCost: 90 }))
+    assert.equal(await average(), 90)
+    assert.equal((await rows('document_item_costs')).find((r) => r.document_id === doc.id).unit_cost_nio, null)
+  })
+  await check('purchase into legacy cost gap keeps average unknown; empty stock can establish cost', async () => {
+    await rpc('record_purchase', purchase({ productId: legacy }))
+    assert.equal(await average(legacy), null)
+    await rpc('record_purchase', purchase({ productId: empty }))
+    assert.equal(await average(empty), 115)
+  })
+  await check('invalid currency, money, tax and dates roll back all purchase effects', async () => {
+    const before = await quantity()
+    const count = (await rows('purchase_records')).length
+    for (const patch of [
+      { exchangeRate: 2 }, { exchangeRate: 0, currency: 'USD' }, { exchangeRate: 'NaN', currency: 'USD' },
+      { currency: 'EUR' }, { quantity: 1.5 }, { unitPrice: -1 }, { unitPrice: '100' },
+      { freightAmount: 0.001 }, { recoverableTaxAmount: 151 }, { incurredOn: '2026-02-30' },
+      { incurredOn: '2099-01-01' }, { supplier: 'X'.repeat(161) },
+    ]) await assert.rejects(rpc('record_purchase', purchase(patch)))
+    assert.equal(await quantity(), before)
+    assert.equal((await rows('purchase_records')).length, count)
+  })
+  let expenseId
+  await check('expenses separate recoverable tax, are idempotent and prohibit merchandise category', async () => {
+    const input = expense()
+    expenseId = await rpc('record_expense', input)
+    assert.equal(await rpc('record_expense', input), expenseId)
+    const row = (await rows('expense_records'))[0]
+    assert.equal((Number(row.amount) + Number(row.tax_amount) - Number(row.recoverable_tax_amount)) * Number(row.exchange_rate), 105)
+    await assert.rejects(rpc('record_expense', { ...input, amount: 101 }), /otros datos/)
+    await assert.rejects(rpc('record_expense', expense({ category: 'mercaderia' })))
+    await assert.rejects(rpc('record_expense', expense({ recoverableTaxAmount: 16 })), /impuestos/)
+    assert.equal((await rows('expense_records')).length, 1)
+  })
+  await check('void expense preserves audit, permits retry and rejects a different reason', async () => {
+    const voidExpense = (reason) => db.query('select public.void_expense($1,$2) as id', [expenseId, reason])
+    await assert.rejects(voidExpense(''), /motivo/)
+    assert.equal((await voidExpense('Duplicado')).rows[0].id, expenseId)
+    assert.equal((await voidExpense('Duplicado')).rows[0].id, expenseId)
+    await assert.rejects(voidExpense('Otro'), /otro motivo/)
+    const row = (await rows('expense_records'))[0]
+    assert.ok(row.voided_at)
+    assert.equal(row.voided_by, admin)
+    assert.equal(row.void_reason, 'Duplicado')
+    assert.equal(Number(row.amount), 100)
+  })
+  await check('all cost tables and RPCs enforce roles independently of the UI', async () => {
+    const tables = ['product_costs', 'purchase_records', 'opening_cost_records', 'expense_records', 'document_item_costs', 'inventory_movement_costs']
+    for (const uid of [operator, warehouse, viewer, outsider]) {
+      await identity(uid)
+      for (const table of tables) assert.equal((await rows(table)).length, 0, `${uid} must not see ${table}`)
+      for (const name of ['record_purchase', 'set_opening_cost', 'record_expense']) await assert.rejects(rpc(name, {}), /insufficient_privilege/)
+      await assert.rejects(db.query('select public.void_expense($1,$2)', [expenseId, 'Motivo']), /insufficient_privilege/)
+    }
+    await identity('', 'anon')
+    for (const table of tables) await assert.rejects(rows(table), /permission denied/)
+    for (const name of ['record_purchase', 'set_opening_cost', 'record_expense']) await assert.rejects(rpc(name, {}), /permission denied/)
+    await identity(admin)
+    for (const table of tables) {
+      await assert.rejects(db.query(`delete from public.${table}`), /permission denied/)
+    }
+    await assert.rejects(db.query('update public.product_costs set average_cost_nio=1'), /permission denied/)
+    await assert.rejects(db.query('insert into public.product_costs(product_id) values($1)', [unknown]), /permission denied/)
+  })
+  await check('operator can invoice while the confidential cost snapshot stays owner-only', async () => {
+    await identity(operator)
+    const doc = await rpc('create_document', invoice({ items: [{ productId: product, quantity: 1 }] }))
+    assert.equal((await rows('document_item_costs')).length, 0)
+    assert.ok((await rows('documents')).some((r) => r.id === doc.id))
+    await identity(admin)
+    assert.equal(Number((await rows('document_item_costs')).find((r) => r.document_id === doc.id).unit_cost_nio), 90)
+  })
+  await check('proformas do not snapshot cost or require an accounting exchange rate', async () => {
+    const before = (await rows('document_item_costs')).length
+    await rpc('create_document', { ...invoice({ kind: 'proforma', currency: 'USD', validUntil: '2099-01-01' }), location: undefined, paymentMethod: undefined })
+    assert.equal((await rows('document_item_costs')).length, before)
+  })
+  await check('the exchange rate is readable by any staff account and writable only by an owner', async () => {
+    await identity(admin)
+    await db.query('select public.set_exchange_rate($1::numeric)', [36.75])
+    assert.equal(Number((await rows('exchange_rates'))[0].usd_to_nio), 36.75)
+    await db.query('select public.set_exchange_rate($1::numeric)', [37.1])
+    assert.equal((await rows('exchange_rates')).length, 1)
+    assert.equal(Number((await rows('exchange_rates'))[0].usd_to_nio), 37.1)
+    for (const uid of [operator, warehouse, viewer]) {
+      await identity(uid)
+      assert.equal(Number((await rows('exchange_rates'))[0].usd_to_nio), 37.1)
+      await assert.rejects(db.query('select public.set_exchange_rate($1::numeric)', [1]), /insufficient|denied/i)
+    }
+    await identity(outsider)
+    assert.equal((await rows('exchange_rates')).length, 0)
+    await identity(admin)
+    await assert.rejects(db.query('select public.set_exchange_rate($1::numeric)', [0]), /tipo de cambio/)
+    await assert.rejects(db.query('select public.set_exchange_rate(null::numeric)'), /tipo de cambio/)
+    await assert.rejects(db.query('update public.exchange_rates set usd_to_nio=1'), /permission denied/)
+  })
+  console.log(`${checks} accounting PostgreSQL checks passed. No deployed database was accessed.`)
+} finally {
+  await db.close()
+}

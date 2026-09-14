@@ -19,8 +19,12 @@ beforeEach(() => {
     this.removeAttribute('open')
   }
 })
-async function mount(role: UserRole, demo = false) {
-  const items = (await catalogAdapter.getInventory()).slice(0, 1)
+async function mount(role: UserRole, demo = false, counted = true) {
+  const items = (await catalogAdapter.getInventory())
+    .slice(0, 1)
+    .map((item) =>
+      counted ? item : { ...item, quantities: { store: null, warehouse: null } },
+    )
   const onRecorded = vi.fn()
   render(
     <AccessContext.Provider value={{ demo, base: '', role }}>
@@ -51,7 +55,7 @@ it('permite al administrador registrar el conteo inicial en cero', async () => {
   )
 })
 it('el operador solo ve salidas y daños y no puede mover un saldo sin conteo', async () => {
-  await mount('operator')
+  await mount('operator', false, false)
   expect(
     screen.queryByRole('button', { name: 'Ajuste' }),
   ).not.toBeInTheDocument()

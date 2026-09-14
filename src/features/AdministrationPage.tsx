@@ -1,4 +1,11 @@
-import { UsersRound, ShieldCheck, Store, UserPlus, Pencil } from 'lucide-react'
+import {
+  UsersRound,
+  ShieldCheck,
+  Store,
+  UserPlus,
+  Pencil,
+  Coins,
+} from 'lucide-react'
 import {
   WorkspaceHeading,
   WorkspaceEmpty,
@@ -17,6 +24,7 @@ import { useAccess } from '../app/AccessContext'
 import { can, roleLabels } from '../lib/permissions'
 import { useQuery } from '../lib/useQuery'
 import { errorMessage } from '../lib/errors'
+import { formatDate } from '../lib/format'
 import {
   listStaff,
   saveStaff,
@@ -63,7 +71,7 @@ export function StaffPage() {
       <WorkspaceHeading
         eyebrow="EQUIPO DE LA TIENDA"
         title="Usuarios y permisos"
-        description="Cada persona con el acceso que necesita para trabajar."
+        description="Autoriza el correo y los permisos de cada persona; ella activa su propia cuenta."
         icon={UsersRound}
       >
         <Button
@@ -82,16 +90,6 @@ export function StaffPage() {
           <UserPlus size={17} /> Autorizar correo
         </Button>
       </WorkspaceHeading>
-      <div className="access-note">
-        <ShieldCheck size={21} />
-        <div>
-          <strong>Un acceso personal para cada integrante</strong>
-          <p>
-            Autoriza su correo, asigna sus permisos y deja que active su propia
-            cuenta.
-          </p>
-        </div>
-      </div>
       {message && (
         <p role="status" className="workspace-feedback">
           {message}
@@ -307,7 +305,9 @@ export function BusinessPage() {
                 maxLength={60}
                 defaultValue={data.phone}
               />
-              <Button disabled={busy || demo}>Guardar</Button>
+              <div className="form-actions">
+                <Button disabled={busy || demo}>Guardar</Button>
+              </div>
             </form>
           )}
           {message && (
@@ -316,7 +316,112 @@ export function BusinessPage() {
             </p>
           )}
         </Card>
+        <ExchangeRateCard />
       </div>
     </>
+  )
+}
+
+/**
+ * La tasa vigente que el programa propone al facturar en dólares y al registrar
+ * compras y gastos. No reescribe nada: cada operación conserva la tasa con la
+ * que se registró, así que cambiarla aquí no mueve ninguna cifra del pasado.
+ */
+function ExchangeRateCard() {
+  const { demo, role } = useAccess()
+  const { settingsService } = useServices()
+  const { data, error, loading, retry } = useQuery(
+    settingsService.getExchangeRate,
+  )
+  const [rate, setRate] = useState('')
+  const [message, setMessage] = useState('')
+  const [busy, setBusy] = useState(false)
+  const editable = !demo && can(role, 'settings.manage')
+  const value = Number(rate)
+  const valid = Number.isFinite(value) && value > 0 && value <= 1000000
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!editable || busy || !valid) return
+    setBusy(true)
+    setMessage('')
+    try {
+      await settingsService.saveExchangeRate(Math.round(value * 1e6) / 1e6)
+      setMessage('Tipo de cambio actualizado.')
+      setRate('')
+      retry()
+    } catch (saveError) {
+      setMessage(errorMessage(saveError))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Card className="form-card record-form exchange-rate-card">
+      <div className="section-heading">
+        <div>
+          <span className="section-kicker">MONEDA</span>
+          <h2>Tipo de cambio del dólar</h2>
+        </div>
+        <Coins size={20} />
+      </div>
+      {loading ? (
+        <LoadingState />
+      ) : (
+        <>
+          <p className="exchange-rate-current">
+            {error ? (
+              <span className="muted">{error}</span>
+            ) : data ? (
+              <>
+                <strong>{data.usdToNio} C$</strong>
+                <span>
+                  por 1 USD
+                  {data.updatedAt
+                    ? ` · actualizado el ${formatDate(data.updatedAt)}`
+                    : ''}
+                </span>
+              </>
+            ) : (
+              <span className="muted">
+                Todavía no hay una tasa registrada. Cada documento la pedirá por
+                separado.
+              </span>
+            )}
+          </p>
+          {editable && (
+            <form onSubmit={submit}>
+              <Input
+                label="Córdobas por 1 dólar"
+                type="number"
+                min="0.000001"
+                max={1000000}
+                step="0.000001"
+                required
+                value={rate}
+                placeholder={data ? String(data.usdToNio) : '36.60'}
+                onChange={(event) => setRate(event.target.value)}
+              />
+              <div className="form-actions">
+                <Button disabled={busy || !valid}>
+                  {busy ? 'Guardando…' : 'Actualizar tasa'}
+                </Button>
+              </div>
+            </form>
+          )}
+          <p className="muted exchange-rate-note">
+            Se propone al facturar en dólares y al registrar compras y gastos.
+            Cada operación guarda la tasa con la que se registró, así que
+            cambiarla no altera nada de lo ya emitido.
+          </p>
+          {message && (
+            <p role="status" className="workspace-feedback">
+              {message}
+            </p>
+          )}
+        </>
+      )}
+    </Card>
   )
 }

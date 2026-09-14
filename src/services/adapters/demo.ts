@@ -1,6 +1,8 @@
 import type { InventoryItem, Product } from '../../lib/domain'
 import type { DataProvider } from '../contracts'
 import { localWrites } from './local'
+import { emptyAccounting } from '../../features/reports/accounting'
+import type { ReportRange } from '../../features/reports/model'
 // Generic fixtures only; no business records and no mutable stock endpoint.
 const specifications = [
   ['A', 'arabian', 'unisex', 18, 12, 10, 1250],
@@ -46,6 +48,17 @@ export const demoAdapter: DataProvider = {
   },
   async getTodaySummary() {
     return { count: 0, totals: { NIO: 0, USD: 0 } }
+  },
+  async getReportSource(range: ReportRange) {
+    return {
+      documents: [],
+      customers: [],
+      movements: [],
+      inventory: structuredClone(items),
+      window: range,
+      truncated: false,
+      accounting: structuredClone(emptyAccounting),
+    }
   },
   ...localWrites,
 }

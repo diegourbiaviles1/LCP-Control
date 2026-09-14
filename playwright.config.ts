@@ -1,4 +1,8 @@
 import { defineConfig, devices } from '@playwright/test'
+// Chrome instalado es el objetivo real. PLAYWRIGHT_CHANNEL permite usar el
+// Chromium de Playwright donde no haya Chrome (contenedores, integración
+// continua) sin tocar la configuración.
+export const browserChannel = process.env.PLAYWRIGHT_CHANNEL || 'chrome'
 export default defineConfig({
   testDir: './tests/e2e',
   fullyParallel: true,
@@ -6,7 +10,7 @@ export default defineConfig({
   use: {
     baseURL: 'http://127.0.0.1:5174',
     trace: 'retain-on-failure',
-    launchOptions: { channel: 'chrome' },
+    launchOptions: { channel: browserChannel },
   },
   projects: [
     {

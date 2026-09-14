@@ -176,9 +176,12 @@ input::placeholder {
   flex-direction: column;
   gap: 12px;
   text-align: center;
-  color: #758376;
+  color: #6b786c;
 }
+.state h2,
 .state h3 {
+  font-size: 15px;
+  letter-spacing: normal;
   color: #354e40;
 }
 .error,
@@ -188,6 +191,24 @@ input::placeholder {
 .inline-error {
   font-size: 13px;
   line-height: 1.5;
+}
+/* El mensaje va bajo su propio campo y queda enlazado por aria-describedby, de
+   modo que el motivo se lee junto al dato que lo provoca. El borde acompaña al
+   texto: el color por sí solo no distingue el campo. */
+.field-error {
+  color: #a14735;
+  font-size: 11px;
+  line-height: 1.45;
+  font-weight: 500;
+}
+.field-invalid > input,
+.field-invalid > select {
+  border-color: #c4705c;
+  background: #fdf7f5;
+}
+.field-invalid > input:focus-visible,
+.field-invalid > select:focus-visible {
+  outline-color: #a14735;
 }
 .feedback {
   padding: 13px 16px;
@@ -637,6 +658,12 @@ input::placeholder {
     background: #fff;
     border-top: 1px solid #e0e6da;
   }
+  /* La barra va fija sobre el contenido: sin esta reserva tapa lo último de
+     cada pantalla, como el buscador manual del lector o los botones de emitir
+     una factura. La altura de la barra más el área segura del teléfono. */
+  .workspace {
+    padding-bottom: calc(68px + env(safe-area-inset-bottom));
+  }
   .bottom-nav a,
   .bottom-nav button {
     display: flex;
@@ -720,7 +747,7 @@ input::placeholder {
   justify-content: space-between;
   align-items: center;
   gap: 10px;
-  color: #77846d;
+  color: #6c7863;
   font-size: 11px;
 }
 .stat-card > div svg {
@@ -1007,7 +1034,7 @@ input::placeholder {
 }
 .filter-grid .field {
   font-size: 10px;
-  color: #74836a;
+  color: #6b7962;
 }
 .filter-grid input,
 .filter-grid select {
@@ -1197,11 +1224,19 @@ th:last-child {
   color: #8c9c80;
   margin-top: 8px;
 }
+/* El lector mapea la región que analiza sobre la caja del vídeo. Recortar con
+   `cover` desplaza lo analizado respecto a lo que se ve: en pantallas anchas el
+   código queda centrado en la imagen y aun así no se lee. La caja conserva la
+   relación de la cámara y el vídeo se muestra completo. */
 .camera-reader {
   width: 100%;
+  max-width: calc(380px * 4 / 3);
+  margin-inline: auto;
 }
 .camera-reader video {
-  object-fit: cover !important;
+  width: 100% !important;
+  height: auto !important;
+  object-fit: contain !important;
   max-height: 380px;
 }
 .camera-loading {
@@ -1239,7 +1274,7 @@ th:last-child {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #738367;
+  color: #69775e;
 }
 .manual-scan form {
   display: flex;
@@ -1448,6 +1483,21 @@ th:last-child {
   }
 }
 @media (max-width: 760px) {
+  /* Safari en iPhone amplía la página al enfocar un control de menos de 16 px,
+     y deja el formulario desplazado a media pantalla. El tamaño se fija en el
+     control, no en la etiqueta, así que la maquetación no cambia. */
+  input,
+  select,
+  textarea,
+  .filter-grid input,
+  .filter-grid select {
+    font-size: 16px;
+  }
+  /* Objetivo táctil mínimo también en los filtros del inventario. */
+  .filter-grid input,
+  .filter-grid select {
+    min-height: 44px;
+  }
   .page-heading {
     margin-bottom: 24px;
   }
@@ -1808,4 +1858,386 @@ fieldset.invoice-editor {
 .form-fields {
   display: grid;
   gap: 1rem;
+}
+
+/* ---------------------------------------------------------------------------
+   Gráficos
+
+   Paleta comprobada con el validador de contraste y visión cromática: los dos
+   primeros tonos son los de la marca (vino y dorado); los otros dos se
+   eligieron por separación, no por gusto. El orden es fijo — un color pertenece
+   a una forma de pago o a una lista de precios, no a su posición en la tabla —
+   y no se generan tonos nuevos: a partir del quinto, los datos se leen mejor en
+   la tabla que en el gráfico. El dorado queda por debajo de 3:1 sobre fondo
+   claro, así que toda serie lleva además su rótulo o su fila en la tabla.
+   --------------------------------------------------------------------------- */
+:root {
+  --chart-1: #a8323a;
+  --chart-2: #c08a1e;
+  --chart-3: #0f8a6a;
+  --chart-4: #3576cc;
+  --chart-grid: #e6eae2;
+  --chart-track: #eef1ea;
+}
+.chart {
+  position: relative;
+  width: 100%;
+}
+.chart svg {
+  display: block;
+  overflow: visible;
+}
+.chart-grid {
+  stroke: var(--chart-grid);
+  stroke-width: 1;
+}
+.chart-axis {
+  fill: #697870;
+  font-size: 10px;
+}
+.chart-line {
+  fill: none;
+  stroke: var(--chart-1);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.chart-area {
+  fill: var(--chart-1);
+  opacity: 0.1;
+}
+.chart-column {
+  fill: var(--chart-1);
+}
+.chart-crosshair {
+  stroke: #b9c3b6;
+  stroke-width: 1;
+}
+/* El anillo del color del fondo mantiene legible el punto sobre la línea. */
+.chart-dot {
+  fill: var(--chart-1);
+  stroke: #fff;
+  stroke-width: 2;
+}
+.chart-tip {
+  position: absolute;
+  z-index: 5;
+  pointer-events: none;
+  background: #1f2e26;
+  color: #fff;
+  padding: 7px 10px;
+  border-radius: 7px;
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: nowrap;
+  box-shadow: 0 6px 18px #1f2e2633;
+}
+.chart-tip strong {
+  display: block;
+  font-size: 13px;
+}
+.chart-tip span {
+  color: #c9d6cc;
+}
+.ranked-bars {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.ranked-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 14px;
+  font-size: 12px;
+}
+.ranked-head span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ranked-head strong {
+  font-size: 12px;
+  white-space: nowrap;
+}
+.ranked-track {
+  margin-top: 6px;
+  height: 10px;
+  background: var(--chart-track);
+  border-radius: 5px;
+  overflow: hidden;
+}
+.ranked-fill {
+  height: 100%;
+  background: var(--chart-1);
+  border-radius: 0 5px 5px 0;
+}
+.ranked-bars small {
+  display: block;
+  margin-top: 5px;
+  font-size: 10px;
+  color: #697870;
+}
+.split-bar {
+  display: flex;
+  height: 14px;
+  border-radius: 7px;
+  overflow: hidden;
+  /* La separación entre tramos la hace el fondo, no un borde sobre la marca. */
+  gap: 2px;
+  background: var(--chart-track);
+}
+.split-legend {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.split-legend li {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 12px;
+}
+.split-chip {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.split-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.split-legend small {
+  color: #697870;
+  font-size: 11px;
+  min-width: 34px;
+  text-align: right;
+}
+
+/* Reportes ---------------------------------------------------------------- */
+.report-exports {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.report-filters {
+  padding: 18px 20px;
+  margin-bottom: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.preset-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  color: #6f7e76;
+}
+.preset {
+  border: 1px solid #e7ddd5;
+  background: #fff;
+  color: #57171c;
+  border-radius: 20px;
+  padding: 8px 14px;
+  font-size: 12px;
+  min-height: 38px;
+}
+.preset:hover {
+  background: #f7efeb;
+}
+.preset-active {
+  background: #57171c;
+  border-color: #57171c;
+  color: #fffaf3;
+}
+.report-currency {
+  margin-bottom: 10px;
+}
+.section-kicker {
+  font-size: 10px;
+  letter-spacing: 2px;
+  font-weight: 700;
+  color: #89683a;
+  margin: 26px 0 12px;
+}
+.report-card {
+  padding: 20px;
+  margin-bottom: 22px;
+}
+.report-card .section-heading {
+  margin-bottom: 16px;
+}
+.report-card .section-heading h2 {
+  font-size: 14px;
+}
+.report-figure {
+  font-size: 27px;
+  font-weight: 600;
+  letter-spacing: -0.8px;
+}
+.report-note {
+  font-size: 11px;
+  margin: 6px 0 16px;
+}
+.report-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 22px;
+  align-items: start;
+}
+.report-columns > .report-card {
+  margin-bottom: 0;
+}
+.client-split {
+  display: flex;
+  gap: 26px;
+  margin-bottom: 20px;
+}
+.client-split div {
+  display: flex;
+  flex-direction: column;
+}
+.client-split strong {
+  font-size: 23px;
+  font-weight: 600;
+}
+.client-split span {
+  font-size: 11px;
+  color: #697870;
+  margin-top: 3px;
+}
+.home-charts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 22px;
+  margin-bottom: 26px;
+  align-items: start;
+}
+.home-charts > .report-card {
+  margin-bottom: 0;
+}
+.home-chart-wide {
+  grid-column: 1 / -1;
+}
+@media (max-width: 900px) {
+  .report-columns,
+  .home-charts {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 760px) {
+  .report-exports {
+    width: 100%;
+  }
+  .report-exports .button {
+    flex: 1;
+  }
+  .report-figure {
+    font-size: 23px;
+  }
+  .report-card {
+    padding: 16px;
+  }
+}
+
+/* Los indicadores de reportes llevan importes completos, no cuentas de dos
+   dígitos como los de la portada: el tamaño sigue al ancho disponible para que
+   la cifra no se corte en un teléfono. */
+.report-currency .stat-card > strong {
+  font-size: clamp(17px, 4.2vw, 30px);
+  letter-spacing: -0.5px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 760px) {
+  .report-figure {
+    font-size: clamp(19px, 6vw, 26px);
+    overflow-wrap: anywhere;
+  }
+}
+
+/* Fase 1 de reportes: variación, listas de clientes y subtítulos ------------ */
+.stat-delta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+/* La flecha acompaña al color: la dirección no se codifica sólo con el tono. */
+.delta-up,
+.delta-down {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-weight: 600;
+  font-size: 11px;
+}
+.delta-up {
+  color: #2c6046;
+}
+.delta-down {
+  color: #a14735;
+}
+.report-subhead {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 22px 0 12px;
+  padding-top: 16px;
+  border-top: 1px solid #eceee7;
+}
+.report-foot {
+  margin: 14px 0 0;
+}
+.lapsed-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.lapsed-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 14px;
+  padding: 11px 0;
+  border-bottom: 1px solid #f0f2ed;
+}
+.lapsed-list li:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+.lapsed-list strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+.lapsed-list small {
+  display: block;
+  font-size: 11px;
+  color: #697870;
+  margin-top: 2px;
+  line-height: 1.45;
+}
+.lapsed-list span {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Un panel de reporte sin datos no necesita el espacio de una pantalla vacía:
+   su mensaje explica qué falta y el resto del tablero sigue leyéndose. */
+.report-card .state {
+  padding: 26px 12px;
 }

@@ -58,9 +58,20 @@
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 20px;
 }
+/* Las tres tarjetas tienen distinto número de campos. Sin estirar el
+   formulario, cada botón queda a una altura y la fila se ve descuadrada. */
+.account-grid > .card {
+  display: flex;
+  flex-direction: column;
+}
 .account-grid form {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 18px;
+  flex: 1;
+}
+.account-grid form > .button {
+  margin-top: auto;
 }
 .document-print-root {
   display: none;

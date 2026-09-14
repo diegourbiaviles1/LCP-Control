@@ -42,7 +42,7 @@ export function whatsappMessage(document: DocumentRecord): string {
         : 'BORRADOR / SIN EMITIR',
     )
   if (document.kind === 'proforma' && document.validUntil)
-    parts.push(`Válida hasta: ${formatDate(`${document.validUntil}T12:00:00`)}`)
+    parts.push(`Válida hasta: ${formatDate(document.validUntil)}`)
   if (document.kind === 'invoice' && document.paymentMethod)
     parts.push(
       `Pago: ${

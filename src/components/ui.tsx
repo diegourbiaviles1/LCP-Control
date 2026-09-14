@@ -19,30 +19,64 @@ export function Button({
     <button className={`button button-${variant} ${className}`} {...props} />
   )
 }
+// `error` marca el control como inválido y enlaza el mensaje con
+// aria-describedby, para que un lector de pantalla lo anuncie al enfocarlo y no
+// sólo se vea el color. Los formularios pueden buscar [aria-invalid="true"]
+// para llevar el foco al primer campo con problema.
 export function Input({
   label,
+  error,
   ...props
-}: InputHTMLAttributes<HTMLInputElement> & { label: string }) {
+}: InputHTMLAttributes<HTMLInputElement> & { label: string; error?: string }) {
   const id = useId()
   return (
-    <label className="field" htmlFor={id}>
-      <span>{label}</span>
-      <input id={id} {...props} />
+    <label className={`field ${error ? 'field-invalid' : ''}`} htmlFor={id}>
+      <span id={`${id}-label`}>{label}</span>
+      {/* El nombre accesible se toma del rótulo, no de todo el contenido de la
+          etiqueta: sin esto el mensaje de error pasaría a formar parte del
+          nombre del campo y los lectores de pantalla leerían ambos juntos. */}
+      <input
+        id={id}
+        aria-labelledby={`${id}-label`}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error ? `${id}-error` : undefined}
+        {...props}
+      />
+      {error && (
+        <small className="field-error" id={`${id}-error`}>
+          {error}
+        </small>
+      )}
     </label>
   )
 }
 export function Select({
   label,
+  error,
   children,
   ...props
-}: SelectHTMLAttributes<HTMLSelectElement> & { label: string }) {
+}: SelectHTMLAttributes<HTMLSelectElement> & {
+  label: string
+  error?: string
+}) {
   const id = useId()
   return (
-    <label className="field" htmlFor={id}>
+    <label className={`field ${error ? 'field-invalid' : ''}`} htmlFor={id}>
       <span id={`${id}-label`}>{label}</span>
-      <select id={id} aria-labelledby={`${id}-label`} {...props}>
+      <select
+        id={id}
+        aria-labelledby={`${id}-label`}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error ? `${id}-error` : undefined}
+        {...props}
+      >
         {children}
       </select>
+      {error && (
+        <small className="field-error" id={`${id}-error`}>
+          {error}
+        </small>
+      )}
     </label>
   )
 }
@@ -82,7 +116,9 @@ export function EmptyState({
   return (
     <div className="state">
       <PackageOpen size={32} />
-      <h3>{title}</h3>
+      {/* Encabeza la sección donde aparece, casi siempre justo bajo el título
+          de la pantalla: un h3 ahí deja un nivel sin usar. */}
+      <h2>{title}</h2>
       <p>{description}</p>
     </div>
   )

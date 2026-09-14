@@ -63,6 +63,27 @@ textarea {
   width: 100%;
   resize: vertical;
 }
+/* Sin esto el selector de archivo queda con el control gris del navegador en
+   medio de campos con la tipografía y el borde de la aplicación. */
+input[type='file'] {
+  padding: 9px 11px;
+  font-size: 13px;
+  color: var(--muted);
+}
+input[type='file']::file-selector-button {
+  font: inherit;
+  font-weight: 600;
+  margin-right: 12px;
+  padding: 8px 14px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #f6efe6;
+  color: var(--wine);
+  cursor: pointer;
+}
+input[type='file']::file-selector-button:hover {
+  background: #f0e5d8;
+}
 :focus-visible {
   outline-color: #b79753;
 }
@@ -121,7 +142,7 @@ textarea {
   min-width: 0;
 }
 .reflection > span {
-  color: #8c6a38;
+  color: #896737;
   font-size: 11px;
   letter-spacing: 1px;
   text-transform: uppercase;
@@ -281,7 +302,7 @@ textarea {
   flex-direction: column;
   align-items: center;
   gap: 12px;
-  color: #91817a;
+  color: #7a6c66;
   font-size: 12px;
 }
 .catalog-product-body {

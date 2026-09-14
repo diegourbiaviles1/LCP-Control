@@ -80,3 +80,38 @@ it('reloads a newly saved perfume and opens its quantities without a page refres
   )
   expect(inventoryService.recordMovement).not.toHaveBeenCalled()
 })
+
+it('marks the fields that block the save instead of one generic notice', async () => {
+  productService.listProducts.mockImplementation(async () => [])
+  productService.saveProduct.mockClear()
+  render(
+    <AccessContext.Provider value={{ base: '', demo: false, role: 'admin' }}>
+      <MemoryRouter initialEntries={['/products/new']}>
+        <Routes>
+          <Route path="products/new" element={<ProductEditorPage />} />
+        </Routes>
+      </MemoryRouter>
+    </AccessContext.Provider>,
+  )
+  const user = userEvent.setup()
+  const name = await screen.findByLabelText('Nombre del perfume')
+  // Sólo la marca y un código de fabricante inválido: faltan nombre y precios.
+  await user.type(screen.getByLabelText('Marca', { exact: true }), 'Marca')
+  await user.type(
+    screen.getByLabelText('Código del fabricante (EAN / UPC)'),
+    '123',
+  )
+  await user.click(screen.getByRole('button', { name: 'Guardar perfume' }))
+
+  expect(productService.saveProduct).not.toHaveBeenCalled()
+  expect(name).toHaveAccessibleDescription('Escribe el nombre del perfume.')
+  expect(
+    screen.getByLabelText('Código del fabricante (EAN / UPC)'),
+  ).toHaveAccessibleDescription(/8, 12, 13 o 14 dígitos/)
+  expect(screen.getByLabelText('Emprendedor NIO')).toHaveAttribute(
+    'aria-invalid',
+    'true',
+  )
+  // El primer campo con problema recibe el foco: puede estar fuera de pantalla.
+  await waitFor(() => expect(name).toHaveFocus())
+})

@@ -25,8 +25,10 @@ test('inventory combines photos, table, product editing and quantity controls', 
   await expect(
     page.getByRole('heading', { name: 'Cantidades del perfume' }),
   ).toBeVisible()
-  await expect(page.getByLabel('Conteo total del perfume')).toHaveValue('')
   await page.getByLabel('Ubicación de las cantidades').selectOption('warehouse')
+  await page
+    .getByLabel('Cómo cambiar las cantidades')
+    .selectOption({ label: 'Registrar conteo total' })
   await page.getByLabel('Conteo total del perfume').fill('10')
   await page
     .getByRole('button', { name: 'Aumentar cantidad en una unidad' })

@@ -12,7 +12,8 @@ import { ScannerSession, type ScanState } from './ScannerSession'
 import { useServices } from '../../services/useServices'
 import { ScannerResult, UnknownProduct } from './ScannerResult'
 export function ScannerPage() {
-  const { productService } = useServices()
+  const { productService, mode } = useServices()
+  const example = mode === 'demo' ? 'DEMO-0001' : 'LCP-0001'
   const id = useId().replaceAll(':', '')
   const elementId = `camera-${id}`
   const controller = useRef<ScannerSession | null>(null)
@@ -124,7 +125,7 @@ export function ScannerPage() {
               <Input
                 label="Código del producto"
                 name="barcode"
-                placeholder="Ej. LCP-B106BB7E6C"
+                placeholder={`Ej. ${example}`}
                 maxLength={128}
                 required
                 disabled={busy}
@@ -133,8 +134,11 @@ export function ScannerPage() {
                 Buscar
               </Button>
             </form>
+            {/* El ejemplo sigue al catálogo activo. Nombrar aquí un perfume
+                concreto envejece mal: basta con que retiren ese producto. */}
             <p>
-              Prueba <code>LCP-B106BB7E6C</code> para consultar Hawas black.
+              Usa el código de la etiqueta interna (<code>{example}</code>) o el
+              EAN del fabricante.
             </p>
           </div>
         </Card>

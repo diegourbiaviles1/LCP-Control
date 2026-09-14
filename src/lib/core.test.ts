@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { can, parseRole } from './permissions'
 import { quantitySchema } from './validation'
-import { formatCurrency } from './format'
+import { formatCurrency, formatDate } from './format'
 import { createServices } from '../services'
 import { demoAdapter } from '../services/adapters/demo'
 import {
@@ -78,5 +78,16 @@ describe('read-only inventory services', () => {
         category: 'designer',
       }),
     ).toHaveLength(1)
+  })
+})
+
+describe('fechas sin hora', () => {
+  it('mantiene el día de una fecha suelta, sea cual sea la zona del equipo', () => {
+    // Medianoche UTC del 20 es todavía el 19 en Managua: sin anclaje, una
+    // vigencia o un periodo de reporte se mostrarían un día antes.
+    expect(formatDate('2026-09-20')).toBe('20 de septiembre de 2026')
+    expect(formatDate('2026-01-01')).toBe('1 de enero de 2026')
+    // Con hora explícita se respeta el instante: 03:00 UTC es el día anterior.
+    expect(formatDate('2026-09-20T03:00:00Z')).toBe('19 de septiembre de 2026')
   })
 })

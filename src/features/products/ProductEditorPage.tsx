@@ -1,6 +1,6 @@
 import { ProductStockEditor } from './ProductStockEditor'
 import { can } from '../../lib/permissions'
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   Button,
@@ -73,6 +73,10 @@ function ProductForm({
   const [preview, setPreview] = useState(product?.imageUrl ?? '')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  // Un aviso único no dice qué campo falta entre nueve datos y seis precios.
+  // La clave es la ruta del dato («name», «prices.vip.USD»).
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+  const form = useRef<HTMLFormElement>(null)
   const [confirmRemove, setConfirmRemove] = useState(false)
   useEffect(() => {
     return () => {
@@ -104,11 +108,24 @@ function ProductForm({
     if (busy || demo) return
     const parsed = productInputSchema.safeParse(value)
     if (!parsed.success) {
+      const found: Record<string, string> = {}
+      for (const issue of parsed.error.issues) {
+        const key = issue.path.join('.')
+        if (key && !found[key]) found[key] = issue.message
+      }
+      setFieldErrors(found)
       setError(
-        'Revisa los datos: nombre, marca y los seis precios son obligatorios. Usa precios positivos con hasta dos decimales y un código de fabricante válido.',
+        `Revisa ${Object.keys(found).length === 1 ? 'el campo marcado' : 'los campos marcados'} antes de guardar.`,
+      )
+      // El primer campo con problema puede estar fuera de la pantalla.
+      requestAnimationFrame(() =>
+        form.current
+          ?.querySelector<HTMLElement>('[aria-invalid="true"]')
+          ?.focus(),
       )
       return
     }
+    setFieldErrors({})
     setBusy(true)
     setError('')
     try {
@@ -177,7 +194,7 @@ function ProductForm({
           cambios.
         </p>
       )}
-      <form onSubmit={save}>
+      <form onSubmit={save} ref={form} noValidate>
         <fieldset disabled={busy} className="form-fields product-editor">
           <Card className="form-card">
             <h2>Foto del perfume</h2>
@@ -225,6 +242,7 @@ function ProductForm({
                 label="Nombre del perfume"
                 required
                 maxLength={200}
+                error={fieldErrors.name}
                 value={value.name}
                 onChange={(e) => update('name', e.target.value)}
               />
@@ -232,6 +250,7 @@ function ProductForm({
                 label="Marca"
                 required
                 maxLength={100}
+                error={fieldErrors.brand}
                 list="product-brands"
                 value={value.brand}
                 onChange={(e) => update('brand', e.target.value)}
@@ -269,6 +288,7 @@ function ProductForm({
               </Select>
               <Input
                 label="Tamaño (vacío si falta confirmar)"
+                error={fieldErrors.size}
                 type="number"
                 min={0.001}
                 max={99999}
@@ -291,6 +311,7 @@ function ProductForm({
               </Select>
               <Input
                 label="Código del fabricante (EAN / UPC)"
+                error={fieldErrors.manufacturerBarcode}
                 inputMode="numeric"
                 maxLength={14}
                 value={value.manufacturerBarcode}
@@ -298,6 +319,7 @@ function ProductForm({
               />
               <Input
                 label="Mínimo de inventario"
+                error={fieldErrors.minimumStock}
                 type="number"
                 min={0}
                 max={1000000}
@@ -331,6 +353,7 @@ function ProductForm({
                   <Input
                     key={currency}
                     label={`${priceTierLabels[tier]} ${currency}`}
+                    error={fieldErrors[`prices.${tier}.${currency}`]}
                     type="number"
                     min={0.01}
                     max={10000000}

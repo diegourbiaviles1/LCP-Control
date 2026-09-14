@@ -96,3 +96,50 @@ it('la demo permite preparar un borrador pero no emitirlo', async () => {
   expect(screen.getByRole('button', { name: 'Guardar borrador' })).toBeEnabled()
   expect(createDocument).not.toHaveBeenCalled()
 })
+
+it('avisa en el renglón cuando la cantidad supera las existencias de la ubicación', async () => {
+  const catalogue = await catalogAdapter.getInventory()
+  // Conteo fijo para comparar contra la cantidad tecleada.
+  services.inventoryService.getInventory = async () =>
+    catalogue.map((item, index) =>
+      index === 0 ? { ...item, quantities: { store: 2, warehouse: 0 } } : item,
+    )
+  const user = await prepare()
+  const quantity = await screen.findByLabelText(/^Cantidad de /)
+
+  expect(quantity).not.toHaveAttribute('aria-invalid')
+  await user.clear(quantity)
+  await user.type(quantity, '5')
+
+  expect(quantity).toHaveAttribute('aria-invalid', 'true')
+  expect(quantity).toHaveAccessibleDescription('Solo hay 2 en Tienda.')
+  expect(screen.getByText(/renglón necesita revisión/)).toBeInTheDocument()
+
+  await user.clear(quantity)
+  await user.type(quantity, '2')
+  await waitFor(() => expect(quantity).not.toHaveAttribute('aria-invalid'))
+
+  services.inventoryService.getInventory = catalogAdapter.getInventory
+})
+
+it('propone la tasa del negocio al pasar a dólares y respeta la que se teclee', async () => {
+  createDocument.mockResolvedValue({ ...issued, currency: 'USD' })
+  const user = await prepare()
+  await user.selectOptions(screen.getByLabelText('Moneda'), 'USD')
+  const rate = await screen.findByLabelText('Tipo de cambio (NIO por 1 USD)')
+  expect(rate).toHaveValue(36.6)
+  await user.clear(rate)
+  await user.type(rate, '37.25')
+  await user.click(screen.getByRole('button', { name: 'Emitir factura' }))
+  await waitFor(() => expect(createDocument).toHaveBeenCalled())
+  expect(createDocument.mock.calls[0][0].exchangeRate).toBe(37.25)
+})
+
+it('deja el campo vacío si se borra la tasa, en vez de reponerla sola', async () => {
+  const user = await prepare()
+  await user.selectOptions(screen.getByLabelText('Moneda'), 'USD')
+  const rate = await screen.findByLabelText('Tipo de cambio (NIO por 1 USD)')
+  await user.clear(rate)
+  expect(rate).toHaveValue(null)
+  expect(screen.getByRole('button', { name: 'Emitir factura' })).toBeDisabled()
+})

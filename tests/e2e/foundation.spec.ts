@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { browserChannel } from '../../playwright.config'
 declare global {
   interface Window {
     __cameraTracks: MediaStreamTrack[]
@@ -7,7 +8,7 @@ declare global {
 
 test.use({
   launchOptions: {
-    channel: 'chrome',
+    channel: browserChannel,
     args: [
       '--use-fake-device-for-media-stream',
       '--use-fake-ui-for-media-stream',

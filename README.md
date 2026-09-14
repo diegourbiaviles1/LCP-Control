@@ -32,8 +32,10 @@ Mantener el servidor encendido mientras se utiliza la aplicación. Usar siempre 
 - **Mi cuenta:** nombre visible, correo y contraseña de la propia cuenta.
 - **Clientes:** alta, edición, archivo, contacto, RUC y lista de precios; selección directa al facturar/cotizar.
 - **Usuarios:** autorización previa de correos, cinco roles y desactivación conservando el historial. Cada persona activa su acceso en `/activate`. El envío SMTP a usuarios fuera del equipo de Supabase está pendiente.
-- **Negocio:** nombre comercial, dirección y teléfono editables.
+- **Negocio:** nombre comercial, dirección y teléfono editables, y el tipo de cambio vigente del dólar. La tasa se propone al facturar en dólares y al registrar compras y gastos; cada operación conserva la que se usó, así que cambiarla no altera nada ya emitido.
 - **Proveedores:** contactos, condiciones, notas y estado compartidos en Supabase, con revisión de cambios concurrentes.
+- **Reportes:** ingresos, ticket, unidades y proformas con su variación contra el periodo anterior; cobertura de existencias, capital detenido, concentración de ventas, clientes que no volvieron, frecuencia de compra, ventas por día de la semana y mermas. Se descargan en PDF y en Excel.
+- **Contabilidad:** costo de compra por promedio ponderado, impuestos y su parte recuperable, gastos por categoría y estado de resultados del periodo. Muestra el margen de cada producto y de cada lista de precios, las ventas por debajo del costo, el inventario valorado a costo y la rotación. Sólo para Administrador y SuperAdmin; el personal de ventas nunca ve costos.
 
 Los reintentos de emisión y movimientos con los mismos datos conservan el identificador de operación mientras el formulario sigue abierto. Los clics simultáneos comparten una sola solicitud. Si se pierde una respuesta, reintentar desde ese formulario. Cerrar, recargar o empezar otra operación crea una nueva solicitud: ante una emisión dudosa, comprobar el registro en la base antes de repetirla.
 

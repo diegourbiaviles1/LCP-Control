@@ -2,8 +2,10 @@ import { jsPDF } from 'jspdf'
 import { documentCopy, labels, type DocumentRecord } from '../../lib/domain'
 import { formatCurrency, formatDate } from '../../lib/format'
 import { priceTierLabels } from '../../lib/pricing'
+import { includedTax } from './document'
 
 export function renderDocumentPdf(d: DocumentRecord, logo: Uint8Array): Blob {
+  const tax = d.taxRate == null ? null : includedTax(d.total, d.taxRate)
   const pdf = new jsPDF({ unit: 'pt', format: 'letter', compress: true })
   const accent: [number, number, number] =
     d.kind === 'invoice' ? [87, 23, 28] : [138, 99, 24]
@@ -95,13 +97,14 @@ export function renderDocumentPdf(d: DocumentRecord, logo: Uint8Array): Blob {
     text(`Lista: ${priceTierLabels[d.tier]} / ${d.currency}`, 384, y + 33, 8)
     text(
       d.kind === 'proforma'
-        ? `Vigencia: ${d.validUntil ? formatDate(`${d.validUntil}T12:00:00`) : '____________'}`
+        ? `Vigencia: ${d.validUntil ? formatDate(d.validUntil) : '____________'}`
         : `Pago: ${d.paymentMethod && d.paymentMethod !== 'pending' ? labels.payment[d.paymentMethod] : 'Pendiente'}`,
       384,
       y + 49,
       8,
     )
-    if (continued) text('Continuación del documento', 384, y + 66, 8)
+    if (d.currency === 'USD' && d.exchangeRate != null) text(`Cambio: ${d.exchangeRate} NIO por USD`, 384, y + 66, 8)
+    else if (continued) text('Continuación del documento', 384, y + 66, 8)
     return y + clientHeight + 16
   }
   function tableHeading(y: number) {
@@ -157,19 +160,24 @@ export function renderDocumentPdf(d: DocumentRecord, logo: Uint8Array): Blob {
   }
   const summaryTop = y + 19
   text('OBSERVACIONES', left, summaryTop, 7, true)
-  text('Subtotal', 370, summaryTop, 9)
-  text(money(d.total), right, summaryTop, 10, false, 'right')
+  text(tax ? 'Subtotal sin impuesto' : 'Subtotal (sin desglose)', 358, summaryTop, 8)
+  text(money(tax?.net ?? d.total), right, summaryTop, 10, false, 'right')
+  if (tax) {
+    text(`Impuesto incluido (${d.taxRate} %)`, 358, summaryTop + 16, 8)
+    text(money(tax.tax), right, summaryTop + 16, 9, false, 'right')
+  }
+  const totalOffset = tax ? 18 : 0
   pdf
     .setFillColor(...accent)
-    .roundedRect(354, summaryTop + 10, 222, 39, 4, 4, 'F')
+    .roundedRect(354, summaryTop + 10 + totalOffset, 222, 39, 4, 4, 'F')
   pdf
     .setTextColor(255, 255, 255)
     .setFont('helvetica', 'bold')
     .setFontSize(10)
-    .text(`TOTAL ${d.currency}`, 368, summaryTop + 34)
+    .text(`TOTAL ${d.currency}`, 368, summaryTop + 34 + totalOffset)
   pdf
     .setFontSize(15)
-    .text(money(d.total), 564, summaryTop + 35, { align: 'right' })
+    .text(money(d.total), 564, summaryTop + 35 + totalOffset, { align: 'right' })
   const notes = wrap(
     d.notes || 'Gracias por elegir La Casa del Perfume.',
     294,
@@ -188,7 +196,7 @@ export function renderDocumentPdf(d: DocumentRecord, logo: Uint8Array): Blob {
       y += 17
     }
   }
-  y = Math.max(y + 15, summaryTop + 66)
+  y = Math.max(y + 15, summaryTop + 66 + totalOffset)
   if (d.kind === 'invoice' && d.location) {
     text(`Entrega desde: ${labels.location[d.location]}`, left, y, 8)
     y += 20
@@ -220,7 +228,7 @@ export function renderDocumentPdf(d: DocumentRecord, logo: Uint8Array): Blob {
       .line(left, 724, right, 724)
     text('Gracias por tu confianza.', left, 739, 10, true)
     text(`${page} / ${pageCount}`, right, 739, 8, false, 'right')
-    const notice = `${d.previewKind === 'example' ? 'Ejemplo de diseño; no registra una venta. ' : d.previewKind === 'draft' ? 'Borrador sin emitir. ' : ''}${d.kind === 'invoice' ? 'Formato comercial provisional. No es comprobante fiscal; no incluye impuestos.' : 'Cotización sujeta a disponibilidad. No constituye factura ni comprobante de pago.'}`
+    const notice = `${d.previewKind === 'example' ? 'Ejemplo de diseño; no registra una venta. ' : d.previewKind === 'draft' ? 'Borrador sin emitir. ' : ''}${d.kind === 'invoice' ? 'Documento de control administrativo. No es comprobante fiscal. Desglose según la tasa de impuesto registrada.' : 'Cotización sujeta a disponibilidad. No constituye factura ni comprobante de pago.'}`
     text(wrap(notice, width, 7), left, 753, 7)
   }
   return pdf.output('blob')

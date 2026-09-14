@@ -199,7 +199,10 @@ test('entry, exit and damage are pending drafts and never change stock', async (
   await expect(
     page.getByRole('heading', { name: 'Movimientos pendientes (3)' }),
   ).toBeVisible()
+  // Los borradores no tocan las existencias: el catálogo local sigue contado.
   await page.getByLabel('Existencias', { exact: true }).selectOption('unknown')
+  await expect(page.getByText('0 de 30 productos')).toBeVisible()
+  await page.getByLabel('Existencias', { exact: true }).selectOption('available')
   await expect(page.getByText('30 de 30 productos')).toBeVisible()
 })
 test('a new visit rotates the reflection without consuming two entries in StrictMode', async ({

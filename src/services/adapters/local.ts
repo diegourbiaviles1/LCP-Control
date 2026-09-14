@@ -12,7 +12,7 @@ export const localBusiness: BusinessSettings = {
 function unavailable(): never {
   throw new AppError(
     'configuration',
-    'La vista local no emite documentos ni modifica inventario. Inicia sesión para trabajar con la base de datos.',
+    'La vista local no emite documentos ni modifica inventario o contabilidad. Inicia sesión para trabajar con la base de datos.',
   )
 }
 function missingConfiguration(): never {
@@ -32,10 +32,17 @@ export const unconfiguredAdapter: DataProvider = {
   findByBarcode: async () => missingConfiguration(),
   getTodaySummary: async () => missingConfiguration(),
   getBusiness: async () => missingConfiguration(),
+  getExchangeRate: async () => missingConfiguration(),
+  saveExchangeRate: async () => missingConfiguration(),
   listCustomers: async () => missingConfiguration(),
   listDocuments: async () => missingConfiguration(),
   createDocument: async () => missingConfiguration(),
   recordMovement: async () => missingConfiguration(),
+  getReportSource: async () => missingConfiguration(),
+  recordPurchase: async () => missingConfiguration(),
+  setOpeningCost: async () => missingConfiguration(),
+  recordExpense: async () => missingConfiguration(),
+  voidExpense: async () => missingConfiguration(),
 }
 export const localWrites = {
   listProducts: async () => unavailable(),
@@ -45,6 +52,11 @@ export const localWrites = {
   async getBusiness(): Promise<BusinessSettings> {
     return { ...localBusiness }
   },
+  // Tasa inventada, igual que el resto de la vista local.
+  async getExchangeRate() {
+    return { usdToNio: 36.6, updatedAt: null }
+  },
+  saveExchangeRate: async () => unavailable(),
   async listCustomers() {
     return []
   },
@@ -55,4 +67,8 @@ export const localWrites = {
   },
   createDocument: async () => unavailable(),
   recordMovement: async () => unavailable(),
+  recordPurchase: async () => unavailable(),
+  setOpeningCost: async () => unavailable(),
+  recordExpense: async () => unavailable(),
+  voidExpense: async () => unavailable(),
 }

@@ -2,8 +2,10 @@ import { Brand } from '../../components/Brand'
 import { documentCopy, labels, type DocumentRecord } from '../../lib/domain'
 import { formatCurrency, formatDate } from '../../lib/format'
 import { priceTierLabels } from '../../lib/pricing'
+import { includedTax } from './document'
 export function DocumentPrint({ document: d }: { document: DocumentRecord }) {
   const copy = documentCopy[d.kind]
+  const tax = d.taxRate === undefined || d.taxRate === null ? null : includedTax(d.total, d.taxRate)
   return (
     <article className={`letter-document letter-${d.kind}`}>
       <header className="letter-header">
@@ -49,9 +51,10 @@ export function DocumentPrint({ document: d }: { document: DocumentRecord }) {
           <span>
             Moneda: {d.currency === 'NIO' ? 'Córdobas (C$)' : 'Dólares (US$)'}
           </span>
+          {d.currency === 'USD' && d.exchangeRate != null && <span>Tipo de cambio: {d.exchangeRate} NIO por USD</span>}
           <span>
             {d.kind === 'proforma'
-              ? `Vigencia: ${d.validUntil ? formatDate(`${d.validUntil}T12:00:00`) : '____________'}`
+              ? `Vigencia: ${d.validUntil ? formatDate(d.validUntil) : '____________'}`
               : `Pago: ${d.paymentMethod && d.paymentMethod !== 'pending' ? labels.payment[d.paymentMethod] : 'Pendiente'}`}
           </span>
         </div>
@@ -101,9 +104,10 @@ export function DocumentPrint({ document: d }: { document: DocumentRecord }) {
         </div>
         <div>
           <p>
-            <span>Subtotal</span>
-            <b>{formatCurrency(d.total, d.currency)}</b>
+            <span>{tax ? 'Subtotal sin impuesto' : 'Subtotal (sin desglose)'}</span>
+            <b>{formatCurrency(tax?.net ?? d.total, d.currency)}</b>
           </p>
+          {tax && <p><span>Impuesto incluido ({d.taxRate} %)</span><b>{formatCurrency(tax.tax, d.currency)}</b></p>}
           <p className="letter-grand-total">
             <span>TOTAL {d.currency}</span>
             <b>{formatCurrency(d.total, d.currency)}</b>
@@ -125,7 +129,7 @@ export function DocumentPrint({ document: d }: { document: DocumentRecord }) {
               ? 'Borrador sin emitir. '
               : ''}
           {d.kind === 'invoice'
-            ? 'Formato comercial provisional. No es comprobante fiscal; no incluye impuestos.'
+            ? 'Documento de control administrativo. No es comprobante fiscal. El desglose usa la tasa de impuesto registrada.'
             : 'Cotización sujeta a disponibilidad. No constituye factura ni comprobante de pago.'}
         </p>
       </footer>

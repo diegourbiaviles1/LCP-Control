@@ -46,6 +46,7 @@ import {
   draftStorageKey,
   draftTotal,
   isoDate,
+  includedTax,
   type DocumentDraft,
   type DraftLine,
 } from './document'
@@ -78,6 +79,7 @@ export function DocumentWorkspace({ kind }: { kind: DocumentKind }) {
     loading: businessLoading,
     retry: retryBusiness,
   } = useQuery(salesService.getBusiness)
+  const { data: savedRate } = useQuery(salesService.getExchangeRate)
   const {
     items: drafts,
     save,
@@ -86,6 +88,10 @@ export function DocumentWorkspace({ kind }: { kind: DocumentKind }) {
     retry: retryDrafts,
   } = useWorkspaceDrafts(draftStorageKey(kind), documentDraftSchema)
   const [currency, setCurrency] = useState<Currency>('NIO')
+  const [taxRate, setTaxRate] = useState(0)
+  // `null` significa «no lo he tocado»: entonces rige la tasa del negocio. Una
+  // cadena vacía es una decisión del usuario y deja el campo en blanco.
+  const [exchangeText, setExchangeText] = useState<string | null>(null)
   const [tier, setTier] = useState<PriceTier>('emprendedor')
   const loadCustomers = useCallback(
     () => (demo ? Promise.resolve([]) : listContacts('customers')),
@@ -115,6 +121,10 @@ export function DocumentWorkspace({ kind }: { kind: DocumentKind }) {
   const [failure, setFailure] = useState('')
   const [busy, setBusy] = useState(false)
 
+  const exchangeField =
+    exchangeText ?? (savedRate ? String(savedRate.usdToNio) : '')
+  const exchangeRate = exchangeField === '' ? null : Number(exchangeField)
+
   const valid = lines.every(
     (line) =>
       Number.isInteger(line.quantity) &&
@@ -122,8 +132,29 @@ export function DocumentWorkspace({ kind }: { kind: DocumentKind }) {
       line.quantity <= 9999,
   )
   const total = valid ? draftTotal(lines, tier, currency) : null
+  const validTax = Number.isFinite(taxRate) && taxRate >= 0 && taxRate <= 100
+  const validExchange = currency === 'NIO' || (exchangeRate !== null && Number.isFinite(exchangeRate) && exchangeRate > 0 && exchangeRate <= 1000000)
+  /**
+   * Motivo por el que una línea no puede facturarse, junto a su cantidad. Las
+   * existencias se comprueban al emitir en PostgreSQL, que es la autoridad;
+   * avisar aquí evita llegar al final del documento para descubrir que faltaba
+   * producto. Una ubicación sin conteo no se señala: eso lo resuelve un ajuste
+   * de inventario y la base lo explica con su propio mensaje.
+   */
+  function quantityIssue(line: DraftLine): string | undefined {
+    if (!Number.isInteger(line.quantity) || line.quantity < 1)
+      return 'Escribe una cantidad entera de 1 a 9999.'
+    if (line.quantity > 9999) return 'El máximo por renglón es 9999.'
+    if (kind !== 'invoice') return undefined
+    const available = data?.find((item) => item.product.id === line.productId)
+      ?.quantities[location]
+    return typeof available === 'number' && line.quantity > available
+      ? `Solo hay ${available} en ${labels.location[location]}.`
+      : undefined
+  }
+  const shortages = lines.filter((line) => quantityIssue(line)).length
   const draft: DocumentDraft | null =
-    lines.length && valid
+    lines.length && valid && validTax
       ? {
           id: current?.id ?? 'preview',
           kind,
@@ -133,6 +164,8 @@ export function DocumentWorkspace({ kind }: { kind: DocumentKind }) {
           phone,
           taxId,
           currency,
+          taxRate,
+          exchangeRate: currency === 'NIO' ? 1 : exchangeRate,
           tier,
           payment,
           location,
@@ -199,11 +232,13 @@ export function DocumentWorkspace({ kind }: { kind: DocumentKind }) {
       validUntil,
       notes,
       currency,
+      taxRate,
+      exchangeRate: currency === 'NIO' ? 1 : exchangeRate,
       tier,
       lines,
     })
     if (!result.success) {
-      setMessage('Agrega productos y revisa las cantidades (1 a 9999).')
+      setMessage('Agrega productos y revisa las cantidades, tasa de impuesto y tipo de cambio.')
       return
     }
     if (
@@ -222,7 +257,7 @@ export function DocumentWorkspace({ kind }: { kind: DocumentKind }) {
   }
 
   async function issue() {
-    if (!lines.length || !valid || busy || issued || demo) return
+    if (!lines.length || !valid || !validTax || (kind === 'invoice' && !validExchange) || busy || issued || demo) return
     setBusy(true)
     setFailure('')
     setMessage('')
@@ -235,6 +270,10 @@ export function DocumentWorkspace({ kind }: { kind: DocumentKind }) {
         customerPhone: whatsappNumber(phone),
         tier,
         currency,
+        taxRate,
+        // Una proforma en dólares puede emitirse sin tasa: el contrato la
+        // omite en lugar de guardar un nulo que la base rechazaría.
+        exchangeRate: currency === 'NIO' ? 1 : (exchangeRate ?? undefined),
         location: kind === 'invoice' ? location : null,
         paymentMethod: kind === 'invoice' ? payment : null,
         validUntil: kind === 'proforma' ? validUntil : null,
@@ -269,6 +308,12 @@ export function DocumentWorkspace({ kind }: { kind: DocumentKind }) {
     setCurrent(item)
     setIssued(null)
     setCurrency(item.currency)
+    setTaxRate(item.taxRate ?? 0)
+    setExchangeText(
+      item.currency === 'USD' && item.exchangeRate != null
+        ? String(item.exchangeRate)
+        : null,
+    )
     setTier(item.tier)
     setCustomerId(item.customerId)
     setCustomer(item.customer)
@@ -290,6 +335,8 @@ export function DocumentWorkspace({ kind }: { kind: DocumentKind }) {
     setCustomer('')
     setPhone('')
     setTaxId('')
+    setTaxRate(0)
+    setExchangeText(null)
     setNotes('')
     setLines([])
     setValidUntil(defaultValidUntil())
@@ -332,7 +379,10 @@ export function DocumentWorkspace({ kind }: { kind: DocumentKind }) {
   if (loadError) return <ErrorState message={loadError} retry={retry} />
   if (businessError)
     return <ErrorState message={businessError} retry={retryBusiness} />
-  const ready = !!lines.length && valid
+  const ready = !!lines.length && valid && validTax
+  const displayedTotal = issued?.total ?? total
+  const displayedTaxRate = issued ? issued.taxRate : taxRate
+  const taxBreakdown = displayedTotal !== null && displayedTaxRate !== undefined && displayedTaxRate !== null && Number.isFinite(displayedTaxRate) ? includedTax(displayedTotal, displayedTaxRate) : null
   return (
     <>
       <div className="page-heading no-print">
@@ -399,7 +449,12 @@ export function DocumentWorkspace({ kind }: { kind: DocumentKind }) {
             />
           </Card>
           <Card className="form-card">
-            <h2>Datos de la {copy.singular}</h2>
+            <div className="section-heading">
+              <div>
+                <span className="section-kicker">CLIENTE Y CONDICIONES</span>
+                <h2>Datos de la {copy.singular}</h2>
+              </div>
+            </div>
             {!demo && (
               <Select
                 label="Cliente registrado"
@@ -493,6 +548,31 @@ export function DocumentWorkspace({ kind }: { kind: DocumentKind }) {
                 />
               )}
             </div>
+            <div className="form-grid">
+              <Input
+                label="Impuesto incluido en el precio (%)"
+                type="number" min={0} max={100} step="0.01"
+                value={Number.isNaN(taxRate) ? '' : taxRate}
+                error={!validTax ? 'Indica una tasa entre 0 y 100.' : undefined}
+                onChange={(event) => setTaxRate(event.target.valueAsNumber)}
+              />
+              {currency === 'USD' && (
+                <Input
+                  label="Tipo de cambio (NIO por 1 USD)"
+                  type="number" min="0.000001" max={1000000} step="0.000001"
+                  value={exchangeField}
+                  error={kind === 'invoice' && !validExchange ? 'Registra el tipo de cambio para contabilizar esta venta.' : undefined}
+                  onChange={(event) => setExchangeText(event.target.value)}
+                />
+              )}
+            </div>
+            <p className="muted">
+              El precio de catálogo es el total a cobrar; la tasa separa el
+              impuesto incluido.
+              {currency === 'USD' &&
+                savedRate &&
+                ` Tipo de cambio propuesto por el negocio: ${savedRate.usdToNio} C$ por dólar. Cambiarlo aquí afecta sólo a este documento.`}
+            </p>
           </Card>
           {drafts.length > 0 && (
             <Card className="form-card">
@@ -541,7 +621,7 @@ export function DocumentWorkspace({ kind }: { kind: DocumentKind }) {
                 {kind === 'invoice'
                   ? ` · ${paymentOptions[payment]}`
                   : validUntil
-                    ? ` · Válida hasta ${formatDate(`${validUntil}T12:00:00`)}`
+                    ? ` · Válida hasta ${formatDate(validUntil)}`
                     : ''}
               </small>
               {kind === 'invoice' && (
@@ -586,6 +666,7 @@ export function DocumentWorkspace({ kind }: { kind: DocumentKind }) {
                   <div className="invoice-line-quantity">
                     <Input
                       label={`Cantidad de ${line.name}`}
+                      error={issued ? undefined : quantityIssue(line)}
                       type="number"
                       min={1}
                       max={9999}
@@ -635,6 +716,12 @@ export function DocumentWorkspace({ kind }: { kind: DocumentKind }) {
               ))
             )}
           </div>
+          {taxBreakdown && (
+            <div className="invoice-meta">
+              <p>Venta sin impuesto<small>{formatCurrency(taxBreakdown.net, issued?.currency ?? currency)}</small></p>
+              <p>Impuesto incluido ({displayedTaxRate} %)<small>{formatCurrency(taxBreakdown.tax, issued?.currency ?? currency)}</small></p>
+            </div>
+          )}
           <div className="invoice-total">
             <span>Total de la {copy.singular}</span>
             <strong>
@@ -657,10 +744,17 @@ export function DocumentWorkspace({ kind }: { kind: DocumentKind }) {
           </label>
           <p className="print-only">{notes}</p>
           <p className="invoice-notice">{copy.notice}</p>
+          {!issued && shortages > 0 && (
+            <p className="inline-error no-print" role="status">
+              {shortages === 1
+                ? 'Un renglón necesita revisión: mira el aviso bajo su cantidad.'
+                : `${shortages} renglones necesitan revisión: mira los avisos bajo sus cantidades.`}
+            </p>
+          )}
           <div className="form-actions no-print">
             <Button
               onClick={issue}
-              disabled={demo || !ready || busy || !!issued}
+              disabled={demo || !ready || (kind === 'invoice' && !validExchange) || busy || !!issued}
             >
               <CircleCheckBig size={17} />
               {issued

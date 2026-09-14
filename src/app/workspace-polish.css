@@ -203,7 +203,7 @@
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 1.6px;
-  color: #94703e;
+  color: #89683a;
   line-height: 1.6;
 }
 .workspace-heading h1 {
@@ -334,7 +334,7 @@
 }
 .contact-tier {
   font-size: 11px;
-  color: #94703e;
+  color: #89683a;
 }
 .contact-details {
   display: grid;
@@ -366,7 +366,7 @@
 }
 .record-details dt {
   font-size: 10px;
-  color: #94703e;
+  color: #89683a;
   margin-bottom: 3px;
 }
 .record-details dd {
@@ -515,6 +515,37 @@
 .business-settings-layout .record-form {
   margin-top: 0;
 }
+/* La tarjeta de identidad ocupa su columna y las dos de datos se apilan en la
+   otra: sin esto la tasa caería bajo el logotipo, lejos del formulario al que
+   pertenece. */
+@media (min-width: 761px) {
+  .business-settings-layout .exchange-rate-card {
+    grid-column: 2;
+  }
+}
+.exchange-rate-current {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin-bottom: 18px;
+}
+.exchange-rate-current strong {
+  font:
+    27px Georgia,
+    serif;
+  color: var(--wine);
+  font-variant-numeric: tabular-nums;
+}
+.exchange-rate-current span {
+  font-size: 13px;
+  color: var(--muted);
+}
+.exchange-rate-note {
+  font-size: 12px;
+  line-height: 1.7;
+  margin-top: 16px;
+}
 .business-identity {
   padding: 35px 30px;
   background: #f8f3ed;
@@ -545,7 +576,7 @@
   margin-top: 27px;
   font-size: 11px;
   line-height: 1.7;
-  color: #8a724f;
+  color: #816a4a;
 }
 .business-note svg {
   flex-shrink: 0;
@@ -705,7 +736,7 @@
 .picker-stock {
   display: block;
   font-size: 9px;
-  color: #758363;
+  color: #6c795b;
   margin: 8px 0 12px;
 }
 .picker-stock.stock-empty {

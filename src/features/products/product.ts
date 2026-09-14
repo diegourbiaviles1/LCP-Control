@@ -1,10 +1,12 @@
 import { z } from 'zod'
 import type { Product } from '../../lib/domain'
+// Los mensajes se muestran junto al campo que los produce, así que se escriben
+// para quien llena el formulario, no para quien lee el código.
 const money = z
-  .number()
-  .finite()
-  .positive()
-  .max(10000000)
+  .number({ error: 'Escribe el precio.' })
+  .finite('Escribe el precio.')
+  .positive('El precio debe ser mayor que cero.')
+  .max(10000000, 'El precio es demasiado alto.')
   .refine(
     (value) => Math.abs(value * 100 - Math.round(value * 100)) < 0.00001,
     'Usa hasta dos decimales.',
@@ -13,14 +15,36 @@ const pair = z.object({ NIO: money, USD: money })
 export const productInputSchema = z.object({
   id: z.uuid(),
   revision: z.number().int().min(0),
-  name: z.string().trim().min(1).max(200),
-  brand: z.string().trim().min(1).max(100),
+  name: z
+    .string()
+    .trim()
+    .min(1, 'Escribe el nombre del perfume.')
+    .max(200, 'Usa 200 caracteres como máximo.'),
+  brand: z
+    .string()
+    .trim()
+    .min(1, 'Escribe la marca.')
+    .max(100, 'Usa 100 caracteres como máximo.'),
   category: z.enum(['arabian', 'designer', 'niche', 'unspecified']),
   gender: z.enum(['male', 'female', 'unisex', 'unspecified']),
-  size: z.number().finite().positive().max(99999).nullable(),
+  size: z
+    .number({ error: 'Escribe un tamaño o deja el campo vacío.' })
+    .finite('Escribe un tamaño o deja el campo vacío.')
+    .positive('El tamaño debe ser mayor que cero.')
+    .max(99999, 'El tamaño es demasiado grande.')
+    .nullable(),
   unit: z.enum(['oz', 'ml']),
-  manufacturerBarcode: z.string().regex(/^(?:[0-9]{8}|[0-9]{12,14})?$/),
-  minimumStock: z.number().int().min(0).max(1000000),
+  manufacturerBarcode: z
+    .string()
+    .regex(
+      /^(?:[0-9]{8}|[0-9]{12,14})?$/,
+      'El código del fabricante lleva 8, 12, 13 o 14 dígitos, o se deja vacío.',
+    ),
+  minimumStock: z
+    .number({ error: 'Escribe el mínimo de inventario.' })
+    .int('Usa una cantidad entera.')
+    .min(0, 'El mínimo no puede ser negativo.')
+    .max(1000000, 'El mínimo es demasiado alto.'),
   active: z.boolean(),
   imagePath: z.string().max(250).nullable(),
   prices: z.object({ emprendedor: pair, vip: pair, premium: pair }),
