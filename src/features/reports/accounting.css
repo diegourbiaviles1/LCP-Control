@@ -28,7 +28,13 @@
 .accounting-breakdown > div { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
 .accounting-breakdown dt { color: var(--muted); }
 .accounting-breakdown dd { margin: 0; text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
-.accounting-table-scroll { overflow-x: auto; max-width: 100%; }
+/* La tabla se desplaza dentro de su tarjeta, no arrastrando la página. Sin
+   `contain: paint` el ancho de la tabla llega hasta la ventana: en el teléfono,
+   las pestañas «Costos y precios» y «Gastos» se deslizaban de lado y dejaban la
+   pantalla en blanco. `overflow-x` solo no lo impide; el contenido de pintado
+   acotado sí. `min-width: 0` deja que el envoltorio se encoja bajo su contenido. */
+.accounting-table-scroll { overflow-x: auto; max-width: 100%; min-width: 0; contain: paint; }
+.accounting-account, .accounting-card { min-width: 0; }
 .accounting-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .accounting-table thead th { color: var(--muted); background: #faf7f3; font-size: 11px; text-align: left; text-transform: uppercase; letter-spacing: .4px; padding: 12px; white-space: nowrap; }
 .accounting-table tbody th, .accounting-table tbody td { padding: 16px 12px; border-bottom: 1px solid var(--line); vertical-align: top; text-align: left; font-variant-numeric: tabular-nums; }
@@ -36,6 +42,12 @@
    quedan uno debajo del otro y dos importes se comparan de un vistazo. */
 .accounting-table th.num, .accounting-table td.num { text-align: right; }
 .accounting-table td.num small { text-align: right; }
+/* Con anchos declarados la tabla deja de medirse por su contenido, así que
+   varias tablas seguidas comparten la misma rejilla. El ancho mínimo mantiene
+   las columnas legibles y deja que el contenedor haga scroll en pantallas
+   estrechas, igual que las demás. */
+.accounting-table-aligned { table-layout: fixed; min-width: 860px; }
+.accounting-table-aligned tbody th, .accounting-table-aligned tbody td { min-width: 0; overflow-wrap: anywhere; }
 .accounting-table tbody th { min-width: 210px; max-width: 330px; font-weight: 600; }
 .accounting-table tbody td { min-width: 125px; }
 .accounting-two-columns .accounting-table tbody th { min-width: 130px; }

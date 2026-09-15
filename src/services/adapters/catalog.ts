@@ -1,4 +1,10 @@
-import type { Category, Gender, InventoryItem, Product } from '../../lib/domain'
+import type {
+  Category,
+  Gender,
+  InventoryItem,
+  PriceTier,
+  Product,
+} from '../../lib/domain'
 import type { DataProvider } from '../contracts'
 import { DEMO_EXCHANGE_RATE, localWrites } from './local'
 import {
@@ -133,5 +139,41 @@ export const catalogAdapter: DataProvider = {
   ...localWrites,
   async listProducts() {
     return structuredClone(catalogProducts)
+  },
+  // La vista local enseña un historial y un costo inventados para que las dos
+  // secciones nuevas del editor se puedan recorrer sin base de datos. El costo
+  // es el mismo que usan los reportes locales, así que el margen que se lee en
+  // el editor cuadra con el que se lee en el panel contable.
+  async listPriceChanges(productId: string) {
+    const prices = catalogProducts.find((row) => row.id === productId)?.prices
+    if (!prices) return []
+    const day = (back: number) =>
+      new Date(Date.now() - back * 86400000).toISOString()
+    const change = (
+      tier: PriceTier,
+      back: number,
+      beforeUsd: number | null,
+      afterUsd: number,
+    ) => ({
+      changedAt: day(back),
+      actor: back > 30 ? 'Carga inicial del catálogo' : 'Dueño',
+      tier,
+      beforeUsd,
+      afterUsd,
+      beforeNio: beforeUsd === null ? null : demoPrice(beforeUsd).NIO,
+      afterNio: demoPrice(afterUsd).NIO,
+      catalogRate: DEMO_EXCHANGE_RATE,
+    })
+    const usd = prices.emprendedor.USD
+    return [
+      change('emprendedor', 12, usd - 2, usd),
+      change('vip', 47, null, prices.vip.USD),
+      change('premium', 47, null, prices.premium.USD),
+      change('emprendedor', 47, null, usd - 2),
+    ]
+  },
+  async getProductCost(productId: string) {
+    const { demoAverageCost } = await import('./catalogSales')
+    return demoAverageCost.get(productId) ?? null
   },
 }

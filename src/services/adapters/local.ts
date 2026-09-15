@@ -33,6 +33,8 @@ export const unconfiguredAdapter: DataProvider = {
   listProducts: async () => missingConfiguration(),
   saveProduct: async () => missingConfiguration(),
   removeProduct: async () => missingConfiguration(),
+  listPriceChanges: async () => missingConfiguration(),
+  getProductCost: async () => missingConfiguration(),
   uploadProductImage: async () => missingConfiguration(),
   mode: 'demo',
   getInventory: async () => missingConfiguration(),
@@ -56,6 +58,14 @@ export const localWrites = {
   saveProduct: async () => unavailable(),
   removeProduct: async () => unavailable(),
   uploadProductImage: async () => unavailable(),
+  // La vista local no tiene historial ni costos propios: cada catálogo de
+  // muestra decide qué enseñar. Sin dato, las secciones quedan vacías.
+  async listPriceChanges() {
+    return []
+  },
+  async getProductCost() {
+    return null
+  },
   async getBusiness(): Promise<BusinessSettings> {
     return { ...localBusiness }
   },

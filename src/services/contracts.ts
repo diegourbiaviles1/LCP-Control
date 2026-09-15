@@ -7,6 +7,7 @@ import type {
   InventoryItem,
   MovementRequest,
   NewDocument,
+  PriceChange,
   Product,
 } from '../lib/domain'
 import type { ProductInput } from '../features/products/product'
@@ -20,6 +21,10 @@ export interface DataProvider {
   listProducts(): Promise<Product[]>
   saveProduct(input: ProductInput): Promise<string>
   removeProduct(id: string, revision: number): Promise<'archived' | 'deleted'>
+  /** Cambios de precio del perfume, del más nuevo al más viejo. Sólo el dueño. */
+  listPriceChanges(productId: string): Promise<PriceChange[]>
+  /** Costo promedio ponderado en córdobas; `null` mientras no se conozca. */
+  getProductCost(productId: string): Promise<number | null>
   uploadProductImage(blob: Blob): Promise<string>
   readonly mode: 'demo' | 'supabase'
   getInventory(includeInactive?: boolean): Promise<InventoryItem[]>

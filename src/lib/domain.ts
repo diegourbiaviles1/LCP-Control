@@ -10,6 +10,20 @@ export type InventoryLocation = 'warehouse' | 'store'
 export type Category = 'arabian' | 'designer' | 'niche' | 'unspecified'
 export type Gender = 'male' | 'female' | 'unisex' | 'unspecified'
 export type PriceTier = 'emprendedor' | 'vip' | 'premium'
+/**
+ * Un cambio de precio de una lista. `beforeUsd` en nulo es el precio con el que
+ * el perfume entró al catálogo: no hubo un precio anterior que mostrar.
+ */
+export interface PriceChange {
+  changedAt: string
+  actor: string
+  tier: PriceTier
+  beforeUsd: number | null
+  afterUsd: number
+  beforeNio: number | null
+  afterNio: number
+  catalogRate: number | null
+}
 export type PaymentMethod = 'cash' | 'card_pos' | 'bank_transfer'
 export type Bank = 'BAC' | 'LAFISE' | 'FICOSA'
 export interface Product {

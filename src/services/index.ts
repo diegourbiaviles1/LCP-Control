@@ -26,6 +26,9 @@ export function createServices(provider: DataProvider) {
         provider.saveProduct(productInputSchema.parse(input)),
       removeProduct: (id: string, revision: number) =>
         provider.removeProduct(id, revision),
+      listPriceChanges: (productId: string) =>
+        provider.listPriceChanges(productId),
+      getProductCost: (productId: string) => provider.getProductCost(productId),
       uploadProductImage: (blob: Blob) => provider.uploadProductImage(blob),
       async findByBarcode(code: string) {
         const parsed = barcodeSchema.safeParse(code)

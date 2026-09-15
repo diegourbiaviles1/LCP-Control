@@ -40,6 +40,19 @@ export function equivalentAmount(
     amount: Math.round(value * 100) / 100,
   }
 }
+/**
+ * Lo que queda de un precio después del costo, entre 0 y 1. Nulo si falta
+ * cualquiera de los dos: un margen a medias es peor que no enseñar ninguno.
+ */
+export function marginRate(
+  priceNio: number | null,
+  costNio: number | null | undefined,
+) {
+  if (priceNio === null || priceNio <= 0) return null
+  if (costNio === null || costNio === undefined) return null
+  if (!Number.isFinite(costNio) || costNio < 0) return null
+  return (priceNio - costNio) / priceNio
+}
 export function lineCents(price: number, quantity: number) {
   if (
     !Number.isFinite(price) ||

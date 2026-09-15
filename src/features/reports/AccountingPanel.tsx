@@ -153,7 +153,7 @@ export function AccountingPanel({ source, range, onRecorded }: { source: ReportS
                   <tr><th scope="row">{operatingLines.goods}</th><td>Precio de los perfumes de los pedidos recibidos</td><td className="num">{value(summary.purchaseGoodsNio)}</td></tr>
                   <tr><th scope="row">{operatingLines.shipping}</th><td>Peso cobrado por las agencias de envío</td><td className="num">{value(summary.purchaseShippingNio)}</td></tr>
                 </LedgerTable>
-              : rows.length ? <LedgerTable label={`Gastos de ${expenseAccounts[account].label} del período`} headings={['Fecha / categoría', 'Descripción', 'Importe original', 'Importe NIO', 'Estado', '']} numeric={[2, 3]}>
+              : rows.length ? <LedgerTable label={`Gastos de ${expenseAccounts[account].label} del período`} headings={['Fecha / categoría', 'Descripción', 'Importe original', 'Importe NIO', 'Estado', '']} numeric={[2, 3]} columns={expenseColumns}>
                   {rows.map((expense) => <tr key={expense.id} className={expense.voidedAt ? 'accounting-voided' : undefined}><th scope="row">{formatDate(expense.incurredOn)}<small>{expenseLabel(expense.category)}</small></th><td>{expense.description}<small>{expense.reference || 'Sin referencia'}</small></td><td className="num">{formatCurrency(expense.amount, expense.currency)}{expense.currency === 'USD' && <small>TC {expense.exchangeRate} NIO/USD</small>}</td><td className="num">{money(roundMoney(expense.amount * expense.exchangeRate))}</td><td><Badge tone={expense.voidedAt ? 'neutral' : 'success'}>{expense.voidedAt ? 'Anulado' : 'Registrado'}</Badge>{expense.voidedAt && <small>{expense.voidReason}</small>}</td><td>{!expense.voidedAt && <Button variant="ghost" disabled={!writable} onClick={() => setAction({ kind: 'void', expenseId: expense.id })} aria-label={`Anular gasto ${expense.description}`}>Anular</Button>}</td></tr>)}
                 </LedgerTable>
               : <p className="accounting-note">Sin movimientos en esta cuenta durante el período. Categorías: {categoriesOf(account).map(expenseLabel).join(', ')}.</p>}
@@ -245,7 +245,15 @@ function Metric({ label, amount, note, icon, highlight = false }: { label: strin
 function Line({ label, amount }: { label: string; amount: string }) { return <div><dt>{label}</dt><dd>{amount}</dd></div> }
 /** `numeric` son los índices de columna que llevan cifras: encabezado y celdas
  *  se alinean a la derecha para que los dígitos queden uno debajo del otro. */
-function LedgerTable({ label, headings, numeric = [], children }: { label: string; headings: string[]; numeric?: number[]; children: ReactNode }) { return <div className="accounting-table-scroll" tabIndex={0} role="region" aria-label={label}><table className="accounting-table"><caption className="sr-only">{label}</caption><thead><tr>{headings.map((heading, index) => <th scope="col" className={numeric.includes(index) ? 'num' : undefined} key={index}>{heading || <span className="sr-only">Acciones</span>}</th>)}</tr></thead><tbody>{children}</tbody></table></div> }
+/**
+ * `columns` fija el ancho de cada columna. Se usa cuando varias tablas con las
+ * mismas columnas van una debajo de otra —las cinco cuentas de gasto—: sin un
+ * ancho declarado cada tabla se mide por su propio contenido y las cifras de
+ * una cuenta no caen sobre las de la siguiente.
+ */
+function LedgerTable({ label, headings, numeric = [], columns, children }: { label: string; headings: string[]; numeric?: number[]; columns?: string[]; children: ReactNode }) { return <div className="accounting-table-scroll" tabIndex={0} role="region" aria-label={label}><table className={columns ? 'accounting-table accounting-table-aligned' : 'accounting-table'}><caption className="sr-only">{label}</caption>{columns && <colgroup>{columns.map((width, index) => <col key={index} style={{ width }} />)}</colgroup>}<thead><tr>{headings.map((heading, index) => <th scope="col" className={numeric.includes(index) ? 'num' : undefined} key={index}>{heading || <span className="sr-only">Acciones</span>}</th>)}</tr></thead><tbody>{children}</tbody></table></div> }
+/** Las seis columnas de las cuentas tecleadas, iguales en las cuatro tablas. */
+const expenseColumns = ['21%', '25%', '15%', '14%', '13%', '12%']
 function productName(source: ReportSource, productId: string) { const product = source.inventory.find((item) => item.product.id === productId)?.product; return product ? `${product.brand} ${product.name}` : 'Producto fuera del catálogo actual' }
 
 /**

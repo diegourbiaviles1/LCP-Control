@@ -1,6 +1,12 @@
 import { ProductStockEditor } from './ProductStockEditor'
 import { can } from '../../lib/permissions'
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+} from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   Button,
@@ -20,14 +26,14 @@ import {
   type Product,
   type PriceTier,
 } from '../../lib/domain'
-import { priceTierLabels } from '../../lib/pricing'
+import { marginRate, priceTierLabels } from '../../lib/pricing'
 import {
   nioFromUsd,
   optimizeProductImage,
   productInput,
   productInputSchema,
 } from './product'
-import { formatCurrency } from '../../lib/format'
+import { formatCurrency, formatDate } from '../../lib/format'
 
 export function ProductEditorPage() {
   const { role, demo } = useAccess()
@@ -69,6 +75,17 @@ function ProductForm({
   // un precio, así que el formulario lo dice y no deja guardar a ciegas.
   const { data: savedRate } = useQuery(settingsService.getExchangeRate)
   const rate = savedRate?.usdToNio ?? null
+  // El costo promedio decide si un precio deja margen. Un perfume recién creado
+  // no lo tiene todavía, y quien no puede leer costos recibe nulo sin error.
+  const productId = product?.id
+  const loadCost = useCallback(
+    () =>
+      productId
+        ? productService.getProductCost(productId)
+        : Promise.resolve(null),
+    [productId, productService],
+  )
+  const { data: averageCost } = useQuery(loadCost)
   const [value, setValue] = useState(() => ({
     ...productInput(product),
     manufacturerBarcode:
@@ -359,6 +376,13 @@ function ProductForm({
                 antes de fijar precios.
               </p>
             )}
+            {product && (
+              <p className="muted">
+                {averageCost === null
+                  ? 'Este perfume todavía no tiene costo registrado: hasta que lo tenga no se puede saber qué margen deja cada precio.'
+                  : `Costo promedio actual: ${formatCurrency(averageCost, 'NIO')} por unidad. Debajo de cada precio va lo que queda después del costo.`}
+              </p>
+            )}
             {(Object.keys(priceTierLabels) as PriceTier[]).map((tier) => {
               const nio = value.prices[tier].NIO
               // Un dólar vacío ya deja su propio aviso en el campo; repetirlo
@@ -402,6 +426,11 @@ function ProductForm({
                       {nioError ?? 'Calculado con la tasa vigente'}
                     </small>
                   </div>
+                  <PriceMargin
+                    priceNio={Number.isNaN(nio) ? null : nio}
+                    costNio={averageCost}
+                    show={!!product}
+                  />
                 </div>
               )
             })}
@@ -428,6 +457,7 @@ function ProductForm({
           )}
         </div>
       </form>
+      {product && <PriceHistory productId={product.id} />}
       {product ? (
         <ProductStockEditor product={product} disabled={busy} />
       ) : (
@@ -464,5 +494,98 @@ function ProductForm({
         </Dialog>
       )}
     </>
+  )
+}
+
+const percentFormat = new Intl.NumberFormat('es-NI', {
+  style: 'percent',
+  maximumFractionDigits: 1,
+})
+/**
+ * Lo que queda del precio después del costo, escrito junto al precio que lo
+ * produce. Cambiar el precio en una pantalla y descubrir el margen en otra es
+ * como se termina vendiendo bajo costo sin enterarse. Bajo el 15 % se marca en
+ * rojo; por debajo de cero se dice con todas las letras.
+ */
+function PriceMargin({
+  priceNio,
+  costNio,
+  show,
+}: {
+  priceNio: number | null
+  costNio: number | null | undefined
+  show: boolean
+}) {
+  const rate = show ? marginRate(priceNio, costNio) : null
+  if (rate === null) return null
+  return (
+    <p
+      className={`product-price-margin ${rate < 0.15 ? 'product-price-margin-thin' : ''}`}
+    >
+      {rate < 0
+        ? `Bajo el costo: pierde ${percentFormat.format(Math.abs(rate))}`
+        : `Margen ${percentFormat.format(rate)}`}
+    </p>
+  )
+}
+/**
+ * Los cambios de precio del perfume. La base ya los venía guardando en cada
+ * guardado del catálogo; esto es la única forma de leerlos. Un cambio sin
+ * «antes» es el precio con el que el perfume entró al catálogo.
+ */
+function PriceHistory({ productId }: { productId: string }) {
+  const { productService } = useServices()
+  const load = useCallback(
+    () => productService.listPriceChanges(productId),
+    [productId, productService],
+  )
+  const { data, error, loading, retry } = useQuery(load)
+  return (
+    <Card className="form-card price-history">
+      <h2>Historial de precios</h2>
+      <p className="muted">
+        Cada cambio de precio de este perfume, del más reciente al más antiguo,
+        con quién lo hizo. Los precios en córdobas son los que dejó la tasa de
+        ese día.
+      </p>
+      {loading && <LoadingState />}
+      {error && <ErrorState message={error} retry={retry} />}
+      {!loading && !error && data?.length === 0 && (
+        <p className="page-feedback">
+          Todavía no hay cambios de precio registrados. El primero que se guarde
+          aparecerá aquí.
+        </p>
+      )}
+      <div className="price-history-list">
+        {data?.map((change, index) => (
+          <article
+            className="price-history-record"
+            key={`${change.changedAt}:${change.tier}:${index}`}
+          >
+            <div>
+              <h3>{priceTierLabels[change.tier]}</h3>
+              <p>
+                {formatDate(change.changedAt)} · {change.actor}
+              </p>
+            </div>
+            <div className="price-history-amounts">
+              <strong>
+                {change.beforeUsd === null
+                  ? formatCurrency(change.afterUsd, 'USD')
+                  : `${formatCurrency(change.beforeUsd, 'USD')} → ${formatCurrency(change.afterUsd, 'USD')}`}
+              </strong>
+              <small>
+                {change.beforeNio === null
+                  ? formatCurrency(change.afterNio, 'NIO')
+                  : `${formatCurrency(change.beforeNio, 'NIO')} → ${formatCurrency(change.afterNio, 'NIO')}`}
+              </small>
+              {change.beforeUsd === null && (
+                <span className="record-badge is-muted">Precio inicial</span>
+              )}
+            </div>
+          </article>
+        ))}
+      </div>
+    </Card>
   )
 }

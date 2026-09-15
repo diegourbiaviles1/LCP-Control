@@ -50,6 +50,63 @@
   color: var(--muted);
   line-height: 1.4;
 }
+/* El margen va debajo del par de precios y no en una columna propia: es una
+   consecuencia de los dos números de arriba, no un tercer dato que se teclea.
+   Un margen delgado se marca donde se lee el precio que lo produjo. */
+.product-price-margin {
+  grid-column: 2 / -1;
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.product-price-margin-thin {
+  color: #a13c3c;
+  font-weight: 600;
+}
+.price-history {
+  margin-top: 18px;
+}
+.price-history-list {
+  display: flex;
+  flex-direction: column;
+}
+.price-history-record {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+.price-history-record:last-child {
+  border-bottom: 0;
+}
+.price-history-record h3 {
+  margin: 0;
+  font-size: 14px;
+}
+.price-history-record p {
+  margin: 3px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.price-history-amounts {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  text-align: right;
+}
+.price-history-amounts strong {
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.price-history-amounts small {
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
 .product-management-list {
   margin-top: 20px;
 }
@@ -290,7 +347,8 @@
     grid-template-columns: 1fr 1fr;
     gap: 12px;
   }
-  .product-price-row h3 {
+  .product-price-row h3,
+  .product-price-margin {
     grid-column: 1 / -1;
   }
   .managed-product {

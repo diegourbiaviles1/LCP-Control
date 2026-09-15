@@ -12,10 +12,8 @@ import { AccountPage } from '../features/auth/AccountPage'
 import { DocumentExamplePage } from '../features/sales/DocumentExamplePage'
 import { SuppliersPage } from '../features/suppliers/SuppliersPage'
 import { ContactsPage } from '../features/ContactsPage'
-import { StaffPage, BusinessPage } from '../features/AdministrationPage'
 import { ActivatePage } from '../features/auth/ActivatePage'
 import { MovementHistory } from '../features/inventory/MovementHistory'
-import { ReportsPage } from '../features/reports/ReportsPage'
 import { DocumentHistory } from '../features/sales/DocumentHistory'
 import { useAccess } from './AccessContext'
 import { can, type Capability } from '../lib/permissions'
@@ -49,6 +47,21 @@ function NotFound() {
     </div>
   )
 }
+const ReportsPage = lazy(() =>
+  import('../features/reports/ReportsPage').then((page) => ({
+    default: page.ReportsPage,
+  })),
+)
+const StaffPage = lazy(() =>
+  import('../features/AdministrationPage').then((page) => ({
+    default: page.StaffPage,
+  })),
+)
+const BusinessPage = lazy(() =>
+  import('../features/AdministrationPage').then((page) => ({
+    default: page.BusinessPage,
+  })),
+)
 const ScannerPage = lazy(() =>
   import('../features/scanner/ScannerPage').then((page) => ({
     default: page.ScannerPage,

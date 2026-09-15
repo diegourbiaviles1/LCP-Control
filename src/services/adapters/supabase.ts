@@ -13,6 +13,7 @@ import type {
   MovementRequest,
   NewDocument,
   PaymentMethod,
+  PriceChange,
   PriceTier,
   Product,
 } from '../../lib/domain'
@@ -38,6 +39,16 @@ interface PriceRow {
 interface BalanceRow {
   location: InventoryLocation
   quantity: number | null
+}
+interface PriceChangeRow {
+  changed_at: string
+  actor: string
+  tier: PriceTier
+  before_usd: number | string | null
+  after_usd: number | string
+  before_nio: number | string | null
+  after_nio: number | string
+  catalog_rate: number | string | null
 }
 interface ProductRow {
   revision: number
@@ -309,6 +320,40 @@ export const supabaseAdapter: DataProvider = {
     })
     if (error) fail(error)
     return data as 'archived' | 'deleted'
+  },
+  async listPriceChanges(productId) {
+    const { data, error } = await client().rpc('list_price_changes', {
+      p_product: productId,
+    })
+    if (error) fail(error)
+    return ((data ?? []) as PriceChangeRow[]).map(
+      (row): PriceChange => ({
+        changedAt: row.changed_at,
+        actor: row.actor,
+        tier: row.tier,
+        beforeUsd: row.before_usd === null ? null : Number(row.before_usd),
+        afterUsd: Number(row.after_usd),
+        beforeNio: row.before_nio === null ? null : Number(row.before_nio),
+        afterNio: Number(row.after_nio),
+        catalogRate: row.catalog_rate === null ? null : Number(row.catalog_rate),
+      }),
+    )
+  },
+  // El rol decide qué se ve: sin permiso sobre la tabla de costos la consulta
+  // no falla, devuelve cero filas. El editor lo lee como «todavía sin costo».
+  async getProductCost(productId) {
+    const { data, error } = await client()
+      .from('product_costs')
+      .select('average_cost_nio')
+      .eq('product_id', productId)
+      .maybeSingle()
+    if (error) {
+      if (accountingSchemaMissing(error)) return null
+      fail(error)
+    }
+    const value = (data as { average_cost_nio: number | string | null } | null)
+      ?.average_cost_nio
+    return value === null || value === undefined ? null : Number(value)
   },
   async uploadProductImage(blob) {
     const { data: auth, error: authError } = await client().auth.getUser()

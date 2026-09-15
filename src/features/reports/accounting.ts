@@ -1,5 +1,5 @@
 import type { Currency, InventoryLocation, PriceTier } from '../../lib/domain'
-import { productPrice } from '../../lib/pricing'
+import { marginRate, productPrice } from '../../lib/pricing'
 import { daysBetween, inRange, localDay, movementsInRange, type ReportRange, type ReportSource } from './model'
 import { totalStock } from '../inventory/model'
 
@@ -404,10 +404,7 @@ export function inventoryTurnover(summary: AccountingSummary, range: ReportRange
 }
 
 /** Share of the list price that is not cost. Null whenever either side is unknown. */
-export function marginRate(priceNio: number | null, costNio: number | null | undefined) {
-  if (priceNio === null || priceNio <= 0 || !known(costNio)) return null
-  return (priceNio - costNio) / priceNio
-}
+export { marginRate } from '../../lib/pricing'
 export interface CatalogMargin {
   tier: PriceTier
   priced: number

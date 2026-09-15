@@ -187,9 +187,22 @@ try {
     assert.equal(await average(), 90)
     assert.equal((await rows('document_item_costs')).find((r) => r.document_id === doc.id).unit_cost_nio, null)
   })
-  await check('a shipment into a legacy cost gap keeps the average unknown; empty stock can establish cost', async () => {
-    await rpc('record_shipment', shipment({}, [{ productId: legacy, location: 'store', quantity: 10, unitPrice: 105 }]))
+  await check('a shipment refuses to enter a cost gap and names the perfume; empty stock establishes cost', async () => {
+    // Existencias contadas y ningún costo: no hay base contra la cual promediar,
+    // así que el pedido se detiene entero en lugar de tirar el costo que sí trae.
+    const stock = await quantity(legacy)
+    await assert.rejects(
+      rpc('record_shipment', shipment({}, [{ productId: legacy, location: 'store', quantity: 10, unitPrice: 105 }])),
+      /Carga primero el costo inicial/,
+    )
     assert.equal(await average(legacy), null)
+    assert.equal(await quantity(legacy), stock)
+    assert.equal((await rows('purchase_shipment_lines')).filter((r) => r.product_id === legacy).length, 0)
+    // Declarado el costo inicial, el mismo pedido entra y pondera.
+    await rpc('set_opening_cost', opening({ productId: legacy, unitCost: 100 }))
+    await rpc('record_shipment', shipment({}, [{ productId: legacy, location: 'store', quantity: 10, unitPrice: 105 }]))
+    assert.equal(await average(legacy), Number(((100 * stock + 115 * 10) / (stock + 10)).toFixed(6)))
+    // Sin existencias previas no hay nada que promediar: el pedido establece el costo.
     await rpc('record_shipment', shipment({}, [{ productId: empty, location: 'store', quantity: 10, unitPrice: 105 }]))
     assert.equal(await average(empty), 115)
   })
@@ -338,6 +351,50 @@ try {
     assert.equal(Number(frozen.catalog_rate), 37.1)
     assert.equal(Number(frozen.total), 1855)
     assert.equal(await average(), costBefore)
+  })
+  await check('a count correction keeps the cost; a manual entry without cost still clears it', async () => {
+    // Corregir un conteo corrige la cuenta de unidades, no su valoración: el
+    // costo se queda. Una entrada manual sí trae mercadería que nadie costeó.
+    const before = await average(empty)
+    assert.ok(before !== null, 'el perfume necesita costo para comprobar que se conserva')
+    const stock = await quantity(empty)
+    await rpc('record_inventory_movement', movement({ productId: empty, type: 'ADJUSTMENT', quantity: stock + 2, note: 'Recuento: eran dos más' }))
+    assert.equal(await quantity(empty), stock + 2)
+    assert.equal(await average(empty), before)
+    await rpc('record_inventory_movement', movement({ productId: empty, type: 'ADJUSTMENT', quantity: stock, note: 'Recuento corregido' }))
+    assert.equal(await average(empty), before)
+    await rpc('record_inventory_movement', movement({ productId: empty, type: 'ENTRY', quantity: 1, note: 'Entrada sin costo declarado' }))
+    assert.equal(await average(empty), null)
+  })
+  await check('price history lists only real price changes, newest first, and only for the owner', async () => {
+    const id = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'
+    const base = {
+      id, name: 'Perfume con precio en dólares', brand: 'Marca', size: 100, unit: 'ml',
+      category: 'niche', gender: 'unisex', minimumStock: 0, active: true,
+    }
+    const revision = async () => (await db.query('select revision from public.products where id=$1', [id])).rows[0].revision
+    const history = async () => (await db.query('select * from public.list_price_changes($1::uuid)', [id])).rows
+    // Guardar sin mover el precio no es un cambio de precio.
+    await rpc('save_catalog_product', { ...base, revision: await revision(), prices: { emprendedor: { USD: 25 }, vip: { USD: 24 }, premium: { USD: 22 } } })
+    const quiet = await history()
+    // Subir la lista Emprendedor sí lo es, y sólo esa lista aparece.
+    await rpc('save_catalog_product', { ...base, revision: await revision(), prices: { emprendedor: { USD: 30 }, vip: { USD: 24 }, premium: { USD: 22 } } })
+    const changed = await history()
+    assert.equal(changed.length, quiet.length + 1)
+    const last = changed[0]
+    assert.equal(last.tier, 'emprendedor')
+    assert.equal(Number(last.before_usd), 25)
+    assert.equal(Number(last.after_usd), 30)
+    assert.equal(Number(last.after_nio), Math.round(30 * 38 * 100) / 100)
+    assert.equal(Number(last.catalog_rate), 38)
+    assert.equal(last.actor, 'Admin')
+    // El alta del perfume queda como su precio de partida, sin un «antes».
+    assert.equal(changed.at(-1).before_usd, null)
+    for (const uid of [operator, warehouse, viewer, outsider]) {
+      await identity(uid)
+      await assert.rejects(db.query('select * from public.list_price_changes($1::uuid)', [id]), /insufficient|denied/i)
+    }
+    await identity(admin)
   })
   console.log(`${checks} accounting PostgreSQL checks passed. No deployed database was accessed.`)
 } finally {

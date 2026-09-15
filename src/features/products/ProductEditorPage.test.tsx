@@ -3,12 +3,22 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { AccessContext } from '../../app/AccessContext'
-import type { Product } from '../../lib/domain'
+import type { PriceChange, Product } from '../../lib/domain'
 import type { ProductInput } from './product'
 import { ProductEditorPage } from './ProductEditorPage'
 
 const { productService, inventoryService, settingsService } = vi.hoisted(() => ({
-  productService: { listProducts: vi.fn(), saveProduct: vi.fn() },
+  productService: {
+    listProducts: vi.fn(),
+    saveProduct: vi.fn(),
+    // Un perfume recién guardado no tiene costo ni cambios de precio todavía.
+    listPriceChanges: vi.fn<(id: string) => Promise<PriceChange[]>>(
+      async () => [],
+    ),
+    getProductCost: vi.fn<(id: string) => Promise<number | null>>(
+      async () => null,
+    ),
+  },
   inventoryService: { getInventory: vi.fn(), recordMovement: vi.fn() },
   // El precio en córdobas sale de esta tasa: sin ella el editor no deja fijar
   // precios, así que la prueba trabaja con una registrada.
@@ -116,4 +126,62 @@ it('marks the fields that block the save instead of one generic notice', async (
   )
   // El primer campo con problema recibe el foco: puede estar fuera de pantalla.
   await waitFor(() => expect(name).toHaveFocus())
+})
+
+it('shows what each price leaves over the cost and the perfume price history', async () => {
+  const product: Product = {
+    id: 'p1', revision: 3, barcode: 'LCP-0001', name: 'Erba pura',
+    brand: 'Marca', category: 'arabian', gender: 'unisex', size: 100,
+    unit: 'ml', price: 7844, currency: 'NIO', minimumStock: 2, active: true,
+    prices: {
+      emprendedor: { USD: 212, NIO: 7844 },
+      vip: { USD: 200, NIO: 7400 },
+      // Esta lista queda por debajo del costo: 3700 contra 4000.
+      premium: { USD: 100, NIO: 3700 },
+    },
+  }
+  productService.listProducts.mockImplementation(async () => [
+    structuredClone(product),
+  ])
+  inventoryService.getInventory.mockImplementation(async () => [
+    { product: structuredClone(product), quantities: { store: 2, warehouse: 1 } },
+  ])
+  productService.getProductCost.mockImplementation(async () => 4000)
+  productService.listPriceChanges.mockImplementation(async () => [
+    {
+      changedAt: '2026-09-10T15:00:00Z', actor: 'Diego', tier: 'emprendedor',
+      beforeUsd: 200, afterUsd: 212, beforeNio: 7400, afterNio: 7844,
+      catalogRate: 37,
+    },
+    {
+      changedAt: '2026-08-01T15:00:00Z', actor: 'Carga inicial', tier: 'premium',
+      beforeUsd: null, afterUsd: 100, beforeNio: null, afterNio: 3700,
+      catalogRate: 37,
+    },
+  ])
+  render(
+    <AccessContext.Provider value={{ base: '', demo: false, role: 'admin' }}>
+      <MemoryRouter initialEntries={['/products/p1/edit']}>
+        <Routes>
+          <Route path="products/:id/edit" element={<ProductEditorPage />} />
+        </Routes>
+      </MemoryRouter>
+    </AccessContext.Provider>,
+  )
+  // El costo se dice una vez, arriba de las tres listas.
+  expect(await screen.findByText(/Costo promedio actual/)).toBeVisible()
+  // 7844 con costo 4000 deja 49 %; 7400 deja 45,9 %.
+  expect(screen.getByText('Margen 49%')).toBeVisible()
+  expect(screen.getByText('Margen 45.9%')).toBeVisible()
+  // Premium vende por debajo del costo y se dice sin rodeos.
+  const loss = screen.getByText(/Bajo el costo/)
+  expect(loss).toBeVisible()
+  expect(loss).toHaveTextContent('Bajo el costo: pierde 8.1%')
+  expect(loss).toHaveClass('product-price-margin-thin')
+  // El historial enseña el antes y el después, y marca el precio de partida.
+  expect(
+    await screen.findByRole('heading', { name: 'Historial de precios' }),
+  ).toBeVisible()
+  expect(screen.getByText(/USD 200\.00 → USD 212\.00/)).toBeVisible()
+  expect(screen.getByText('Precio inicial')).toBeVisible()
 })

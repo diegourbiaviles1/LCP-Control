@@ -2065,6 +2065,23 @@ fieldset.invoice-editor {
 .report-currency {
   margin-bottom: 10px;
 }
+/* Los dos bloques de moneda repiten las mismas ocho secciones, una debajo de
+   otra. La etiqueta que los separa tiene que pesar más que los títulos que
+   gobierna; si no, la segunda tanda de «Ingresos por día» se lee como repetida. */
+.report-currency > .section-kicker {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--wine);
+  margin: 38px 0 16px;
+}
+.report-currency > .section-kicker::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
 .section-kicker {
   font-size: 10px;
   letter-spacing: 2px;
